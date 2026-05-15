@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "node server/index.js"
+restartPolicyType = "on_failure"
+healthcheckPath = "/health"
