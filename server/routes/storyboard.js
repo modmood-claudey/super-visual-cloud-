@@ -105,26 +105,29 @@ router.post('/scene/approve', requireAuth, async (req, res) => {
 router.post('/scene/retry', requireAuth, async (req, res) => {
   try {
     const { scene_id, engine = 'auto', refs = [] } = req.body;
-    req.body = { scene_id, engine, refs };
-    return require('./storyboard').handle(req, res);
-  } catch (e) {
-    // Regenerate same prompt
-    const scene = await db.getScene(req.body.scene_id);
-    const limit = await gpt.checkImageLimit();
+    if (!scene_id) return res.status(400).json({ error: 'scene_id required' });
+
+    const scene = await db.getScene(scene_id);
+    const prompt = scene.prompt || `${scene.action} ${scene.camera} ${scene.lighting}`;
+    const limit  = await gpt.checkImageLimit();
     let image_url, engine_used;
 
-    if (limit.remaining > 0) {
+    if ((engine === 'gpt' || engine === 'auto') && limit.remaining > 0) {
       engine_used = 'gpt';
-      const result = await gpt.generateImages([scene.prompt], req.user.id);
+      const result = await gpt.generateImages([prompt], req.user.id);
       image_url = result.images?.[0]?.url;
     }
-    if (!image_url) {
+    if (!image_url || engine === 'higgsfield') {
       engine_used = 'higgsfield';
-      const hf = await higgsfield.generateAndWait(scene.prompt, 'image', []);
+      const hf = await higgsfield.generateAndWait(prompt, 'image', refs);
       image_url = hf.result_url;
     }
-    const updated = await db.updateScene(req.body.scene_id, { image_url, status: 'generated' });
-    res.json({ scene: updated, engine_used });
+
+    const updated = await db.updateScene(scene_id, { image_url, status: 'generated' });
+    const newLimit = await gpt.checkImageLimit();
+    res.json({ scene: updated, engine_used, gpt_remaining: newLimit.remaining });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

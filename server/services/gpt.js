@@ -66,14 +66,14 @@ async function chat(session_id, userMessage, platform = 'dashboard', systemOverr
   const history = await getHistory(session_id, 16);
 
   const messages = [
+    { role: 'system', content: systemOverride || GPT_SYSTEM_PROMPT },
     ...history,
     { role: 'user', content: userMessage },
   ];
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.4-mini',
     messages,
-    system: systemOverride || GPT_SYSTEM_PROMPT,
     max_tokens: 1024,
     temperature: 0.7,
   });
@@ -91,7 +91,7 @@ async function chat(session_id, userMessage, platform = 'dashboard', systemOverr
 async function analyzeImage(image_url, prompt = 'Analyze this image for a creative production director.') {
   const client = getClient();
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.4-mini',
     messages: [{
       role: 'user',
       content: [
@@ -117,7 +117,7 @@ Output as structured Waviboy-style production notes. Be specific and technical.`
 
   const client = getClient();
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.4-mini',
     messages: [{
       role: 'user',
       content: [
@@ -148,7 +148,7 @@ Follow ALL prompt rules:
 Output only the prompt, nothing else.`;
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.4-mini',
     messages: [{ role: 'user', content: msg }],
     max_tokens: 600,
     temperature: 0.8,
@@ -174,7 +174,7 @@ Return ONLY valid JSON in this exact structure:
 }`;
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.5-2026-04-23',
     messages: [{ role: 'user', content: msg }],
     max_tokens: 1000,
     response_format: { type: 'json_object' },
@@ -213,7 +213,7 @@ Return ONLY valid JSON array:
 Rules: NEVER use cinematic/moody/vibrant/stunning/ethereal/dynamic/dreamy in prompts. Include camera body+lens+Kelvin+film reference in every prompt.`;
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.5-2026-04-23',
     messages: [{ role: 'user', content: msg }],
     max_tokens: 2000,
     response_format: { type: 'json_object' },
@@ -290,7 +290,7 @@ async function adjustPromptFromFeedback(original_prompt, feedback, bad_image_url
   };
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.4-mini',
     messages: [{ role: 'user', content: [textPart, ...imgParts] }],
     max_tokens: 600,
   });
