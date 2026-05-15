@@ -1,0 +1,14 @@
+{
+  "name": "super-visual-cloud",
+  "version": "1.0.0",
+  "description": "Super Visual AI Production Pipeline",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "install:server": "cd server && npm install",
+    "init": "cd server && node init.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
