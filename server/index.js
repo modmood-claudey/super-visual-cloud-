@@ -48,6 +48,7 @@ app.use('/auth',       require('./routes/auth'));
 app.use('/brain',      require('./routes/brain'));
 app.use('/generate',   require('./routes/generate'));
 app.use('/storyboard', require('./routes/storyboard'));
+app.use('/storyboard', require('./routes/storyboard_routes'));
 app.use('/branding',   require('./routes/branding'));
 app.use('/vo',         require('./routes/vo'));
 app.use('/memory',     require('./routes/memory'));

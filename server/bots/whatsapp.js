@@ -25,6 +25,7 @@ async function startBot() {
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_PATH);
 
+  const sbWA      = require('./storyboard_whatsapp');
   const sessions  = new Map(); // jid → { project, engine, pendingAction, storyboard }
 
   function getSession(jid) {
@@ -253,20 +254,14 @@ async function startBot() {
             }
 
             case '/fullboard': {
-              sess.pendingAction = { type: 'fullboard_ask_scenes' };
+              // delegated to storyboard pipeline
+              await sbWA.handleCommand('/fullboard', jid, send, sock);
               await send('🎬 *Full Storyboard*\n\nHow many scenes?\n\n*6* — Short reel\n*9* — Full campaign\n*12* — Extended');
               break;
             }
 
             case '/go': {
-              if (sess.pendingAction?.type !== 'fullboard_collect') {
-                await send('❌ No fullboard in progress. Start with /fullboard');
-                break;
-              }
-              const pa = sess.pendingAction;
-              if (!pa.brief) { await send('❌ Send your brief first'); break; }
-              sess.pendingAction = null;
-              await runFullStoryboardWA(jid, pa.brief, pa.refs, pa.numScenes, sess, send, sock);
+              await sbWA.handleCommand('/go', jid, send, sock);
               break;
             }
 
@@ -319,6 +314,10 @@ async function startBot() {
         }
 
         // ── Brain chat ─────────────────────────────────────────────────────────
+        // Storyboard pipeline (consumes message if session active)
+        const sbHandled = await sbWA.handleMessage(bodyText, jid, send, sock, null, null).catch(() => false);
+        if (sbHandled) continue;
+
         const result = await gpt.chat(jid, bodyText, 'whatsapp');
         await send(result.text);
       }

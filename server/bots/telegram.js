@@ -499,6 +499,9 @@ function startBot() {
   });
 
   console.log('✓ Telegram bot polling started');
+  // Attach full storyboard pipeline
+  require('./storyboard_telegram').attach(bot, allowed);
+
   return bot;
 }
 
