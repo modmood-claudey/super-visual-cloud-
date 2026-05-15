@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Visual — Production Hub</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a0a; --surface: #111; --card: #181818; --border: #252525;
+  --accent: #F2C94C; --accent2: #c9a033; --text: #e8e8e8; --muted: #666;
+  --green: #4caf50; --red: #f44336; --blue: #4a9eda; --orange: #F2994A;
+}
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; font-size: 13px; }
+a { color: var(--accent); text-decoration: none; }
+
+/* ── Header ── */
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+header h1 { font-size: 15px; font-weight: 700; color: var(--accent); }
+header .sub { font-size: 11px; color: var(--muted); }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; background: var(--card); border: 1px solid var(--border); }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot.red { background: var(--red); }
+.dot.orange { background: var(--orange); }
+
+/* ── Layout ── */
+.layout { display: grid; grid-template-columns: 240px 1fr; flex: 1; min-height: 0; overflow: hidden; }
+.sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Forms ── */
+label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 4px; }
+select, input, textarea { width: 100%; padding: 8px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; transition: border-color 0.15s; }
+select:focus, input:focus, textarea:focus { border-color: var(--accent2); }
+textarea { resize: vertical; min-height: 72px; font-family: inherit; line-height: 1.5; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.sec { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--accent); color: #000; width: 100%; }
+.btn-primary:hover { background: #e6b85c; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-red { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn-green { background: var(--green); color: #000; border: none; }
+.spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.limit-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 4px; }
+.limit-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+.limit-fill.warn { background: var(--orange); }
+.limit-fill.crit { background: var(--red); }
+
+/* ── Engine selector ── */
+.engine-selector { display: flex; gap: 4px; }
+.engine-btn { flex: 1; padding: 5px 4px; font-size: 10px; font-weight: 600; cursor: pointer; border-radius: 5px; border: 1px solid var(--border); background: var(--card); color: var(--muted); transition: all 0.15s; text-align: center; }
+.engine-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+/* ── Workspace ── */
+.workspace { display: flex; flex-direction: column; overflow: hidden; }
+.tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+.tab { padding: 10px 16px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { flex: 1; overflow: hidden; display: none; }
+.tab-content.active { display: flex; flex-direction: column; }
+
+/* ── Chat ── */
+.chat-wrap { display: flex; flex-direction: column; height: 100%; }
+.chat-msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 82%; padding: 10px 13px; border-radius: 10px; font-size: 12px; line-height: 1.55; }
+.msg.user { background: var(--accent2); color: #fff; align-self: flex-end; border-radius: 10px 10px 2px 10px; }
+.msg.brain { background: var(--card); border: 1px solid var(--border); align-self: flex-start; border-radius: 10px 10px 10px 2px; max-width: 88%; }
+.msg.system { background: transparent; border: 1px dashed var(--border); color: var(--muted); font-size: 11px; align-self: center; max-width: 100%; }
+.msg code { background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px; font-family: 'SF Mono', monospace; font-size: 11px; }
+.msg pre { background: rgba(0,0,0,0.4); padding: 8px; border-radius: 4px; font-size: 11px; white-space: pre-wrap; margin-top: 6px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.chip { padding: 5px 11px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chat-input-row { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.chat-input-row textarea { min-height: 38px; max-height: 120px; resize: none; flex: 1; }
+
+/* ── Generate ── */
+.gen-wrap { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.result-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.result-card img { width: 100%; aspect-ratio: 9/16; object-fit: cover; display: block; }
+.result-card .rc-info { padding: 10px; font-size: 11px; }
+.result-card .rc-type { color: var(--accent); font-weight: 700; font-size: 10px; text-transform: uppercase; margin-bottom: 3px; }
+.result-card .rc-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+.result-card.error { border-color: var(--red); }
+.result-card.done  { border-color: var(--green); }
+
+/* ── Board ── */
+.board-wrap { padding: 14px; overflow-y: auto; }
+.board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.scene-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.scene-card img { width: 100%; aspect-ratio: 9/16; object-fit: cover; }
+.scene-card .sc-info { padding: 10px; }
+.scene-card .sc-num { font-size: 10px; color: var(--accent); font-weight: 700; margin-bottom: 3px; }
+.scene-card .sc-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.scene-card .sc-meta { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.scene-card .sc-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.sc-status { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.sc-status.approved { background: rgba(76,175,80,0.15); color: var(--green); }
+.sc-status.pending  { background: rgba(102,102,102,0.15); color: var(--muted); }
+.sc-status.generated { background: rgba(74,158,218,0.15); color: var(--blue); }
+
+/* ── VO ── */
+.vo-wrap { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.vo-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vo-history { display: flex; flex-direction: column; gap: 8px; }
+.vo-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
+.vo-item audio { flex: 1; margin: 0 10px; height: 32px; }
+
+/* ── Memory ── */
+.mem-wrap { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.mem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.mem-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.mem-cat { font-size: 10px; color: var(--accent); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+.mem-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.mem-content { font-size: 11px; color: var(--muted); line-height: 1.5; max-height: 60px; overflow: hidden; }
+
+/* ── Status ── */
+.status-wrap { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.status-table { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.status-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.status-row:last-child { border-bottom: none; }
+.status-label { width: 130px; color: var(--muted); flex-shrink: 0; }
+.status-val { flex: 1; }
+.pid-tag { background: var(--surface); padding: 2px 6px; border-radius: 4px; font-size: 10px; color: var(--accent); font-family: monospace; }
+
+/* ── Prompt box ── */
+.prompt-box { background: var(--card); border: 1px solid var(--accent2); border-radius: 8px; padding: 12px; font-size: 11px; line-height: 1.6; font-family: 'SF Mono', monospace; word-break: break-all; }
+.copy-row { display: flex; gap: 6px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚡ Super Visual</h1>
+    <div class="sub" id="userLabel">Production Hub</div>
+  </div>
+  <div class="header-right">
+    <div class="badge"><div class="dot red" id="dotGPT"></div><span id="lblGPT">GPT</span></div>
+    <div class="badge"><div class="dot red" id="dotClaude"></div><span>Claude</span></div>
+    <div class="badge"><div class="dot red" id="dotSupabase"></div><span>Supabase</span></div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Sign Out</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="field">
+      <div class="sec">Project</div>
+    </div>
+    <div class="field">
+      <label>Client</label>
+      <select id="clientSelect">
+        <option value="">— Select —</option>
+        <option>Alcazar</option><option>ASDAM Perfumes</option><option>Sadad Payment</option>
+        <option>Haya Haya</option><option>Style Shams</option><option>Cozy Care</option>
+        <option>4 Point</option><option>Vigneto.qa</option><option>Iksha 360</option>
+        <option>Peugeot 5008</option><option>Joelle FHC</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Project Name</label>
+      <input type="text" id="projectName" placeholder="e.g. Summer 2026">
+    </div>
+    <div class="field">
+      <label>Brief</label>
+      <textarea id="briefInput" placeholder="Campaign description…"></textarea>
+    </div>
+
+    <div class="field">
+      <div class="sec" style="margin-bottom:8px">Engine</div>
+      <div class="engine-selector">
+        <div class="engine-btn active" onclick="setEngine('gpt',this)">GPT</div>
+        <div class="engine-btn" onclick="setEngine('claude',this)">Claude</div>
+        <div class="engine-btn" onclick="setEngine('higgsfield',this)">HF</div>
+        <div class="engine-btn" onclick="setEngine('template',this)">TPL</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>GPT Images <span id="limitText" style="color:var(--accent)">—/45</span></label>
+      <div class="limit-bar"><div class="limit-fill" id="limitFill" style="width:0%"></div></div>
+    </div>
+
+    <button class="btn btn-primary" onclick="runGenerate()">▶ Run</button>
+    <button class="btn btn-ghost" onclick="runBranding()">🏢 Full Campaign</button>
+    <button class="btn btn-ghost" onclick="runStoryboard()">📋 Storyboard</button>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace">
+    <div class="tabs">
+      <div class="tab active" data-tab="chat" onclick="switchTab('chat')">🧠 Chat</div>
+      <div class="tab" data-tab="generate" onclick="switchTab('generate')">📸 Generate</div>
+      <div class="tab" data-tab="board" onclick="switchTab('board')">🎬 Board</div>
+      <div class="tab" data-tab="vo" onclick="switchTab('vo')">🎙 VO</div>
+      <div class="tab" data-tab="memory" onclick="switchTab('memory')">🧠 Memory</div>
+      <div class="tab" data-tab="status" onclick="switchTab('status')">📊 Status</div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="tab-content active" id="tab-chat">
+      <div class="chat-wrap">
+        <div class="chat-msgs" id="chatMsgs">
+          <div class="msg system">AI Director ready. Say anything — or pick a quick action below.</div>
+        </div>
+        <div class="chip-row">
+          <span class="chip" onclick="quickAction('Start a branding campaign for '+getClient())">🏢 Start branding</span>
+          <span class="chip" onclick="quickAction('Build a 6-scene storyboard for '+getClient())">📋 New storyboard</span>
+          <span class="chip" onclick="quickAction('Generate a VO script for a luxury brand')">🎙 Generate VO</span>
+          <span class="chip" onclick="switchTab('status')">📊 Check status</span>
+          <span class="chip" onclick="quickAction('Write a Waviboy prompt for the last scene')">✍️ Waviboy prompt</span>
+        </div>
+        <div class="chat-input-row">
+          <textarea id="chatInput" placeholder="Ask about clients, request prompts, trigger pipeline, analyze refs…" onkeydown="chatKeydown(event)" rows="2"></textarea>
+          <input type="file" id="fileInput" accept="image/*,video/*" style="display:none" onchange="attachFile(this)">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('fileInput').click()" title="Attach image or video">📎</button>
+          <button class="btn btn-primary btn-sm" onclick="sendChat()" style="width:56px">Send</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearChat()">🧹</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GENERATE -->
+    <div class="tab-content" id="tab-generate">
+      <div class="gen-wrap">
+        <div class="field">
+          <label>Prompt</label>
+          <textarea id="genPrompt" placeholder="Waviboy-style prompt…" style="min-height:90px"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="field" style="flex:1">
+            <label>Engine</label>
+            <select id="genEngine">
+              <option value="auto">Auto (GPT → HF fallback)</option>
+              <option value="gpt">GPT Image</option>
+              <option value="higgsfield">Higgsfield Nano Banana Pro</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1">
+            <label>Type</label>
+            <select id="genType">
+              <option value="image">Image</option>
+              <option value="video">Video (Seedance 2.0)</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Ref images (URLs, one per line)</label>
+          <textarea id="genRefs" placeholder="https://…&#10;https://…" style="min-height:60px"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="generate()" id="genBtn">▶ Generate</button>
+        <div class="results-grid" id="resultsGrid">
+          <div style="color:var(--muted);font-size:12px;grid-column:1/-1;padding:20px;text-align:center">Results appear here</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOARD -->
+    <div class="tab-content" id="tab-board">
+      <div class="board-wrap">
+        <div class="board-header">
+          <span style="color:var(--muted);font-size:12px" id="boardTitle">No project loaded</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="loadBoard()">↻ Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="compile()">📦 Compile</button>
+          </div>
+        </div>
+        <div class="board-grid" id="boardGrid">
+          <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-size:12px">Start a storyboard to populate scenes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VO -->
+    <div class="tab-content" id="tab-vo">
+      <div class="vo-wrap">
+        <div class="sec">VO Studio</div>
+        <div class="field">
+          <label>Script / Text</label>
+          <textarea id="voText" placeholder="Enter Arabic text or scene description for script generation…" style="min-height:100px"></textarea>
+        </div>
+        <div class="vo-controls">
+          <div class="field">
+            <label>Dialect</label>
+            <select id="voDialect">
+              <option value="qatari">Qatari</option>
+              <option value="gulf">Gulf</option>
+              <option value="saudi">Saudi</option>
+              <option value="emirati">Emirati</option>
+              <option value="palestinian">Palestinian</option>
+              <option value="jordanian">Jordanian</option>
+              <option value="msa">MSA (فصحى)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Emotion</label>
+            <select id="voEmotion">
+              <option value="luxury">Luxury</option>
+              <option value="warm">Warm</option>
+              <option value="formal">Formal</option>
+              <option value="neutral">Neutral</option>
+              <option value="excited">Excited</option>
+              <option value="dramatic">Dramatic</option>
+              <option value="whisper">Whisper</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Gender</label>
+            <select id="voGender">
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Age</label>
+            <select id="voAge">
+              <option value="mid">Mid</option>
+              <option value="young">Young</option>
+              <option value="senior">Senior</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" style="flex:1" onclick="generateVO()" id="voBtn">🎙 Generate VO</button>
+          <button class="btn btn-ghost" style="flex:1" onclick="generateVOScript()">✍️ Write Script First</button>
+        </div>
+        <div id="voQuota" style="font-size:11px;color:var(--muted)">Loading quota…</div>
+        <div class="vo-history" id="voHistory">
+          <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Generated audio appears here</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEMORY -->
+    <div class="tab-content" id="tab-memory">
+      <div class="mem-wrap">
+        <div style="display:flex;gap:8px">
+          <input type="text" id="memSearch" placeholder="Search memories…" onkeydown="if(event.key==='Enter')searchMemory()" style="flex:1">
+          <select id="memCat" style="width:140px">
+            <option value="">All categories</option>
+            <option>prompts</option><option>color_grades</option><option>brand_briefs</option>
+            <option>workflows</option><option>storyboards</option><option>notes</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="searchMemory()">Search</button>
+        </div>
+        <div class="mem-grid" id="memGrid">
+          <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-size:12px">Search or browse memories</div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:12px">
+          <div class="sec" style="margin-bottom:10px">Save New Memory</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field">
+              <label>Category</label>
+              <select id="saveMemCat">
+                <option>prompts</option><option>color_grades</option><option>brand_briefs</option>
+                <option>workflows</option><option>notes</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Title</label>
+              <input type="text" id="saveMemTitle" placeholder="Memory title">
+            </div>
+          </div>
+          <textarea id="saveMemContent" placeholder="Memory content…" style="min-height:80px;margin-bottom:8px"></textarea>
+          <button class="btn btn-primary" onclick="saveMemory()">💾 Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="tab-content" id="tab-status">
+      <div class="status-wrap">
+        <div class="sec">Services</div>
+        <div class="status-table" id="statusTable">
+          <div class="status-row"><div class="status-label">Loading…</div></div>
+        </div>
+        <div class="sec">GPT Image Limit</div>
+        <div id="limitPanel" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px">
+          <div id="limitDetail">Loading…</div>
+          <div class="limit-bar" style="margin-top:8px"><div class="limit-fill" id="statusLimitFill" style="width:0%"></div></div>
+        </div>
+        <div class="sec">Topaz Queue</div>
+        <div class="status-table" id="topazTable">
+          <div class="status-row"><div class="status-label" style="width:100%">No pending jobs</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Auth ───────────────────────────────────────────────────────────────────────
+const token = localStorage.getItem('sv_token');
+const user  = JSON.parse(localStorage.getItem('sv_user') || 'null');
+if (!token) { window.location.href = '/login.html'; }
+if (user) document.getElementById('userLabel').textContent = user.name || user.email;
+
+function logout() { localStorage.clear(); window.location.href = '/login.html'; }
+
+function api(path, opts = {}) {
+  return fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
+    body: opts.body ? (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)) : undefined,
+  }).then(r => r.json());
+}
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let currentEngine    = 'gpt';
+let currentProject   = null;
+let currentSessionId = `dash_${Date.now()}`;
+let pendingAttachment = null;
+
+function getClient() { return document.getElementById('clientSelect').value || 'this client'; }
+
+function setEngine(eng, el) {
+  currentEngine = eng;
+  document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === `tab-${name}`));
+  if (name === 'status') refreshStatus();
+  if (name === 'memory') loadMemory();
+  if (name === 'board' && currentProject) loadBoard();
+  if (name === 'vo') loadVOQuota();
+}
+
+// ── Chat ───────────────────────────────────────────────────────────────────────
+function chatKeydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }
+
+function quickAction(text) {
+  document.getElementById('chatInput').value = text;
+  sendChat();
+}
+
+async function attachFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  appendMsg('system', `📎 Attaching: ${esc(file.name)}…`);
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+  const data = await res.json();
+  if (data.url) {
+    pendingAttachment = { type: file.type.startsWith('video/') ? 'video' : 'image', url: data.url, name: file.name };
+    appendMsg('system', `✅ Attached: ${esc(file.name)} — now send your message`);
+  } else {
+    appendMsg('system', `⚠️ Upload failed: ${esc(data.error || 'unknown')}`);
+  }
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text  = input.value.trim();
+  if (!text && !pendingAttachment) return;
+  input.value = '';
+
+  const displayText = pendingAttachment ? `📎 ${pendingAttachment.name}\n${text}` : text;
+  appendMsg('user', esc(displayText));
+
+  const typingId = appendMsg('brain', '<span class="spinner"></span> Thinking…', true);
+  const body = {
+    message:    text || 'Analyze this attachment.',
+    session_id: currentSessionId,
+    platform:   'dashboard',
+    attachments: pendingAttachment ? [pendingAttachment] : [],
+  };
+  pendingAttachment = null;
+
+  try {
+    const data = await api('/brain/chat', { method: 'POST', body });
+    removMsg(typingId);
+    appendMsg('brain', mdToHtml(data.text || data.error || '⚠️ No response'));
+    if (data.action?.action) handleAction(data.action);
+    if (data.suggestions?.length) renderSuggestions(data.suggestions);
+  } catch (e) {
+    removMsg(typingId);
+    appendMsg('brain', `⚠️ Error: ${esc(e.message)}`);
+  }
+}
+
+async function clearChat() {
+  currentSessionId = `dash_${Date.now()}`;
+  document.getElementById('chatMsgs').innerHTML = '<div class="msg system">Session cleared.</div>';
+}
+
+function handleAction(action) {
+  const act = action.action || '';
+  if (act === 'storyboard' || act === 'generate') switchTab('generate');
+  if (act === 'prompt' && action.output) appendPromptBox(action.output);
+  if (action.command) appendMsg('system', `💡 Suggested: <code>${esc(action.command)}</code>`);
+}
+
+function renderSuggestions(suggestions) {
+  const div = document.createElement('div');
+  div.className = 'msg brain';
+  div.innerHTML = suggestions.map(s =>
+    `<button class="btn btn-ghost btn-sm" style="margin:3px" onclick="setEngineByName('${s.engine}')">${esc(s.label)}</button>`
+  ).join('');
+  document.getElementById('chatMsgs').appendChild(div);
+  scrollChat();
+}
+
+function setEngineByName(eng) {
+  currentEngine = eng.split('+')[0];
+  document.querySelectorAll('.engine-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase().startsWith(currentEngine.slice(0,2)));
+  });
+}
+
+function appendPromptBox(prompt) {
+  const div = document.createElement('div');
+  div.className = 'msg brain';
+  div.innerHTML = `<div style="font-size:10px;color:var(--muted);margin-bottom:6px">✍️ PROMPT</div>
+    <div class="prompt-box">${esc(prompt)}</div>
+    <div class="copy-row">
+      <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(prompt)}).then(()=>alert('Copied!'))">📋 Copy</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('genPrompt').value=${JSON.stringify(prompt)};switchTab('generate')">→ Generate</button>
+    </div>`;
+  document.getElementById('chatMsgs').appendChild(div);
+  scrollChat();
+}
+
+// ── Generate ───────────────────────────────────────────────────────────────────
+async function generate() {
+  const prompt = document.getElementById('genPrompt').value.trim();
+  const engine = document.getElementById('genEngine').value;
+  const type   = document.getElementById('genType').value;
+  const refs   = document.getElementById('genRefs').value.split('\n').map(s => s.trim()).filter(Boolean);
+
+  if (!prompt) return alert('Enter a prompt first.');
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+
+  const grid = document.getElementById('resultsGrid');
+  const placeholder = grid.querySelector('div[style]');
+  if (placeholder) placeholder.remove();
+
+  try {
+    let data;
+    if (type === 'video') {
+      data = await api('/generate/video', { method: 'POST', body: { prompt, refs } });
+      const card = makeResultCard('video', prompt, null, data.job_id);
+      grid.prepend(card);
+      // Poll
+      if (data.job_id) pollVideoJob(data.job_id, card);
+    } else {
+      data = await api('/generate/image', { method: 'POST', body: { prompt, refs, engine } });
+      updateLimitMeter(data.gpt_remaining, 45);
+      for (const img of data.images || []) {
+        grid.prepend(makeResultCard('image', prompt, img.url));
+      }
+      if (data.limit_hit) appendMsg('system', '⚠️ GPT image limit hit — switched to Higgsfield');
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Generate';
+  }
+}
+
+function makeResultCard(type, prompt, imageUrl, jobId = null) {
+  const card = document.createElement('div');
+  card.className = 'result-card ' + (imageUrl ? 'done' : '');
+  card.innerHTML = `
+    <div class="rc-info">
+      <div class="rc-type">${type}${jobId ? ` · job: ${jobId.slice(0,8)}` : ''}</div>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:6px">${esc(prompt.slice(0, 70))}${prompt.length > 70 ? '…' : ''}</div>
+      ${imageUrl ? `<img src="${imageUrl}" style="width:100%;border-radius:4px;margin-bottom:8px">` : '<div id="job-'+jobId+'" style="color:var(--muted);font-size:11px;padding:20px;text-align:center"><span class="spinner"></span> Processing…</div>'}
+      <div class="rc-actions">
+        ${imageUrl ? `
+          <button class="btn btn-green btn-sm" onclick="approveResult('${imageUrl}')">✅ Approve</button>
+          <button class="btn btn-ghost btn-sm" onclick="retryResult()">🔄 Retry</button>
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${imageUrl}')">📋 URL</button>
+        ` : ''}
+      </div>
+    </div>`;
+  return card;
+}
+
+async function pollVideoJob(jobId, card) {
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const data = await api(`/generate/status/${jobId}`);
+      const status = (data.status || '').toLowerCase();
+      if (status === 'completed' || status === 'succeeded') {
+        const el = card.querySelector(`#job-${jobId}`);
+        if (el) el.innerHTML = `<a href="${data.result_url}" target="_blank">🎬 Video ready</a>`;
+        card.classList.add('done');
+        break;
+      }
+      if (status === 'failed' || status === 'error') {
+        const el = card.querySelector(`#job-${jobId}`);
+        if (el) el.textContent = '❌ Failed: ' + (data.error || '');
+        card.classList.add('error');
+        break;
+      }
+    } catch (_) {}
+  }
+}
+
+function approveResult(url) {
+  if (currentProject) {
+    appendMsg('system', `✅ Image approved and noted for project`);
+  }
+}
+function retryResult() { generate(); }
+
+// ── Storyboard ─────────────────────────────────────────────────────────────────
+async function runStoryboard() {
+  const brief  = document.getElementById('briefInput').value.trim();
+  const client = document.getElementById('clientSelect').value;
+  const name   = document.getElementById('projectName').value.trim() || 'New Project';
+  if (!brief) return alert('Enter a brief first.');
+
+  appendMsg('system', `📋 Building ${currentEngine} storyboard…`);
+  switchTab('chat');
+
+  try {
+    const data = await api('/storyboard/start', { method: 'POST', body: {
+      brief, client, project_name: name, engine: currentEngine
+    }});
+    currentProject = data.project;
+    document.getElementById('boardTitle').textContent = `${client} / ${name} — ${data.scenes?.length} scenes`;
+    switchTab('board');
+    renderBoard(data.scenes || []);
+  } catch (e) {
+    appendMsg('brain', `⚠️ ${esc(e.message)}`);
+  }
+}
+
+async function runBranding() {
+  const brief  = document.getElementById('briefInput').value.trim();
+  const client = document.getElementById('clientSelect').value;
+  const name   = document.getElementById('projectName').value.trim() || 'Brand Campaign';
+  if (!brief) return alert('Enter a brief first.');
+
+  appendMsg('system', `🏢 Running ${currentEngine} campaign…`);
+  switchTab('chat');
+
+  try {
+    const data = await api('/branding/generate', { method: 'POST', body: {
+      brief, client, project_name: name, engine: currentEngine
+    }});
+    currentProject = data.project;
+    if (data.brand_kit?.brand_name) {
+      appendMsg('brain', mdToHtml(`**Brand Kit:** ${data.brand_kit.brand_name}\n_${data.brand_kit.tagline || ''}_\n\n${JSON.stringify(data.brand_kit?.color_palette || [], null, 2)}`));
+    }
+    renderBoard(data.storyboard || []);
+    switchTab('board');
+  } catch (e) {
+    appendMsg('brain', `⚠️ ${esc(e.message)}`);
+  }
+}
+
+function renderBoard(scenes) {
+  const grid = document.getElementById('boardGrid');
+  grid.innerHTML = '';
+  if (!scenes.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-size:12px">No scenes</div>';
+    return;
+  }
+  for (const s of scenes) {
+    const card = document.createElement('div');
+    card.className = 'scene-card';
+    const status = s.status || 'pending';
+    card.innerHTML = `
+      ${s.image_url ? `<img src="${s.image_url}" loading="lazy">` : '<div style="aspect-ratio:9/16;background:#111"></div>'}
+      <div class="sc-info">
+        <div class="sc-num">SCENE ${s.num} <span class="sc-status ${status}">${status}</span></div>
+        <div class="sc-title">${esc(s.title || '')}</div>
+        <div class="sc-meta">${esc((s.action||'').slice(0,80))}</div>
+        <div class="sc-actions">
+          <button class="btn btn-green btn-sm" onclick="approveScene('${s.id}')">✅</button>
+          <button class="btn btn-ghost btn-sm" onclick="retryScene('${s.id}')">🔄</button>
+          <button class="btn btn-ghost btn-sm" onclick="generateScene('${s.id}')">⚡ Gen</button>
+          <button class="btn btn-ghost btn-sm" onclick="promptAdjust('${s.id}')">✏️</button>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  }
+}
+
+async function loadBoard() {
+  if (!currentProject?.id) return;
+  try {
+    const data = await api(`/projects/${currentProject.id}`);
+    renderBoard(data.scenes || []);
+  } catch (_) {}
+}
+
+async function generateScene(id) {
+  try {
+    const data = await api('/storyboard/scene/generate', { method: 'POST', body: { scene_id: id, engine: currentEngine } });
+    updateLimitMeter(data.gpt_remaining, 45);
+    loadBoard();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function approveScene(id) {
+  await api('/storyboard/scene/approve', { method: 'POST', body: { scene_id: id } });
+  loadBoard();
+}
+
+async function retryScene(id) {
+  await api('/storyboard/scene/retry', { method: 'POST', body: { scene_id: id } });
+  loadBoard();
+}
+
+async function promptAdjust(id) {
+  const feedback = prompt('Feedback for this scene:');
+  if (!feedback) return;
+  await api('/storyboard/scene/adjust', { method: 'POST', body: { scene_id: id, feedback } });
+  loadBoard();
+}
+
+async function compile() {
+  if (!currentProject?.id) return alert('No project loaded.');
+  const data = await api('/storyboard/compile', { method: 'POST', body: { project_id: currentProject.id } });
+  if (data.url) window.open(data.url, '_blank');
+  else alert(data.error || 'Compile failed');
+}
+
+// ── VO ─────────────────────────────────────────────────────────────────────────
+async function generateVO() {
+  const text    = document.getElementById('voText').value.trim();
+  const dialect = document.getElementById('voDialect').value;
+  const emotion = document.getElementById('voEmotion').value;
+  const gender  = document.getElementById('voGender').value;
+  const age     = document.getElementById('voAge').value;
+  if (!text) return alert('Enter text first.');
+
+  const btn = document.getElementById('voBtn');
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  try {
+    const data = await api('/vo/generate', { method: 'POST', body: { text, dialect, emotion, gender, age } });
+    addVOItem(data.url, `${dialect} · ${gender} · ${emotion}`);
+    loadVOQuota();
+  } catch (e) { alert('VO error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🎙 Generate VO'; }
+}
+
+async function generateVOScript() {
+  const text    = document.getElementById('voText').value.trim();
+  const dialect = document.getElementById('voDialect').value;
+  if (!text) return alert('Enter scene description first.');
+  const data = await api('/vo/script', { method: 'POST', body: {
+    scene: text, dialect, tone: document.getElementById('voEmotion').value, generate_audio: false
+  }});
+  document.getElementById('voText').value = data.script || '';
+}
+
+function addVOItem(url, label) {
+  const hist = document.getElementById('voHistory');
+  const item = document.createElement('div');
+  item.className = 'vo-item';
+  item.innerHTML = `<span style="font-size:11px;color:var(--muted)">${esc(label)}</span>
+    <audio controls src="${url}" style="flex:1;margin:0 10px;height:32px"></audio>
+    <a href="${url}" target="_blank" class="btn btn-ghost btn-sm">⬇</a>`;
+  hist.insertBefore(item, hist.firstChild);
+  const placeholder = hist.querySelector('div[style]');
+  if (placeholder) placeholder.remove();
+}
+
+async function loadVOQuota() {
+  try {
+    const q = await api('/vo/quota');
+    document.getElementById('voQuota').textContent = `ElevenLabs: ${q.remaining?.toLocaleString()} / ${q.limit?.toLocaleString()} chars remaining (${q.percent_used}% used)`;
+  } catch (_) {}
+}
+
+// ── Memory ─────────────────────────────────────────────────────────────────────
+async function searchMemory() {
+  const q   = document.getElementById('memSearch').value.trim();
+  const cat = document.getElementById('memCat').value;
+  const url = q ? `/memory/search?q=${encodeURIComponent(q)}&category=${cat}` : `/memory/list?category=${cat}&limit=30`;
+  try {
+    const data = await api(url);
+    renderMemory(data.items || []);
+  } catch (_) {}
+}
+
+async function loadMemory() {
+  try {
+    const data = await api('/memory/list?limit=30');
+    renderMemory(data.items || []);
+  } catch (_) {}
+}
+
+function renderMemory(items) {
+  const grid = document.getElementById('memGrid');
+  grid.innerHTML = '';
+  if (!items.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-size:12px">No memories found</div>';
+    return;
+  }
+  for (const m of items) {
+    const card = document.createElement('div');
+    card.className = 'mem-card';
+    card.innerHTML = `<div class="mem-cat">${esc(m.category)}</div>
+      <div class="mem-title">${esc(m.title)}</div>
+      <div class="mem-content">${esc((m.content || '').slice(0, 200))}</div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        <span style="font-size:10px;color:var(--muted)">${new Date(m.created_at).toLocaleDateString()}</span>
+        <button class="btn btn-ghost btn-sm" onclick="deleteMemory('${m.id}')">🗑</button>
+      </div>`;
+    grid.appendChild(card);
+  }
+}
+
+async function saveMemory() {
+  const category = document.getElementById('saveMemCat').value;
+  const title    = document.getElementById('saveMemTitle').value.trim();
+  const content  = document.getElementById('saveMemContent').value.trim();
+  if (!title || !content) return alert('Title and content required.');
+  await api('/memory/save', { method: 'POST', body: { category, title, content } });
+  document.getElementById('saveMemTitle').value = '';
+  document.getElementById('saveMemContent').value = '';
+  loadMemory();
+}
+
+async function deleteMemory(id) {
+  if (!confirm('Delete this memory?')) return;
+  await api(`/memory/${id}`, { method: 'DELETE' });
+  loadMemory();
+}
+
+// ── Status ─────────────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    const data = await api('/health');
+    const rows = [
+      ['GPT (OpenAI)', data.gpt?.status === 'ok', data.gpt?.images_remaining != null ? `${data.gpt.images_remaining} imgs remaining` : data.gpt?.error],
+      ['Claude (Anthropic)', data.anthropic === 'configured', data.anthropic],
+      ['Higgsfield', data.higgsfield === 'configured', data.higgsfield],
+      ['ElevenLabs', data.elevenlabs === 'configured', data.elevenlabs],
+      ['Supabase', data.supabase === 'ok', data.supabase],
+      ['Telegram', data.telegram === 'configured', data.telegram],
+    ];
+
+    document.getElementById('statusTable').innerHTML = rows.map(([name, ok, detail]) =>
+      `<div class="status-row">
+        <div class="status-label">${esc(name)}</div>
+        <div class="status-val"><span class="dot ${ok ? 'green' : 'red'}" style="display:inline-block;margin-right:6px"></span>${ok ? 'OK' : 'ISSUE'}</div>
+        <span style="font-size:11px;color:var(--muted)">${esc(String(detail || ''))}</span>
+      </div>`
+    ).join('');
+
+    updateDots(data);
+
+    // Limit
+    if (data.gpt?.images_remaining != null) {
+      const rem = data.gpt.images_remaining;
+      updateLimitMeter(rem, 45);
+      document.getElementById('limitDetail').textContent = `GPT Images: ${rem} / 45 remaining in current 3-hour window`;
+    }
+  } catch (e) {
+    document.getElementById('statusTable').innerHTML = `<div class="status-row"><div class="status-label">⚠️ ${esc(e.message)}</div></div>`;
+  }
+}
+
+function updateDots(data) {
+  const gptOk = data.gpt?.status === 'ok';
+  document.getElementById('dotGPT').className    = 'dot ' + (gptOk ? 'green' : 'red');
+  document.getElementById('dotClaude').className = data.anthropic === 'configured' ? 'dot green' : 'dot orange';
+  document.getElementById('dotSupabase').className = data.supabase === 'ok' ? 'dot green' : 'dot red';
+}
+
+function updateLimitMeter(remaining, limit) {
+  const pct  = Math.round((1 - remaining / limit) * 100);
+  const fill = document.getElementById('limitFill');
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.className   = 'limit-fill' + (pct > 80 ? ' crit' : pct > 60 ? ' warn' : '');
+  }
+  const lf2 = document.getElementById('statusLimitFill');
+  if (lf2) { lf2.style.width = pct + '%'; lf2.className = 'limit-fill' + (pct > 80 ? ' crit' : pct > 60 ? ' warn' : ''); }
+  const lt = document.getElementById('limitText');
+  if (lt) lt.textContent = `${remaining}/${limit}`;
+}
+
+async function runGenerate() {
+  const prompt = document.getElementById('briefInput').value.trim();
+  const client = document.getElementById('clientSelect').value;
+  if (!prompt) return alert('Enter a brief / prompt.');
+  switchTab('generate');
+  document.getElementById('genPrompt').value = prompt;
+  document.getElementById('genEngine').value = currentEngine === 'higgsfield' ? 'higgsfield' : currentEngine === 'gpt' ? 'gpt' : 'auto';
+  await generate();
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+let _msgId = 0;
+function appendMsg(type, html, returnId = false) {
+  const div = document.createElement('div');
+  const id  = 'msg-' + (++_msgId);
+  div.id = id; div.className = `msg ${type}`;
+  div.innerHTML = html;
+  document.getElementById('chatMsgs').appendChild(div);
+  scrollChat();
+  return returnId ? id : undefined;
+}
+function removMsg(id) { const el = document.getElementById(id); if (el) el.remove(); }
+function scrollChat() { const el = document.getElementById('chatMsgs'); el.scrollTop = el.scrollHeight; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function mdToHtml(text) {
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/_(.+?)_/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+refreshStatus();
+setInterval(refreshStatus, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Environment
+.env
+*.env
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# WhatsApp auth state (re-scan QR after deploy)
+server/state/wa_auth/
+
+# Build output
+dist/
+build/
+
+# Media
+*.mp3
+*.mp4
+*.wav
+*.mov
+*.avi
+*.webm
+
+# Temp
+tmp/
+temp/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log

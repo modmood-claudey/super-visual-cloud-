@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Visual — Login</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --bg: #0a0a0a; --surface: #141414; --border: #2a2a2a; --accent: #F2C94C; --text: #e8e8e8; --muted: #666; --red: #f44336; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.card { width: 100%; max-width: 380px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+.logo { text-align: center; margin-bottom: 32px; }
+.logo h1 { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+.logo p { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.field { margin-bottom: 16px; }
+label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+input { width: 100%; padding: 12px 14px; background: #1c1c1c; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.15s; }
+input:focus { border-color: var(--accent); }
+.btn { width: 100%; padding: 13px; background: var(--accent); color: #000; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 8px; transition: background 0.15s; letter-spacing: 0.3px; }
+.btn:hover { background: #e6b85c; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.error { color: var(--red); font-size: 12px; margin-top: 12px; text-align: center; display: none; }
+.divider { text-align: center; color: var(--muted); font-size: 11px; margin: 20px 0; }
+.sub-btn { width: 100%; padding: 12px; background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.sub-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>⚡ Super Visual</h1>
+    <p>AI Production Pipeline</p>
+  </div>
+  <div class="field">
+    <label>Email</label>
+    <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+  </div>
+  <button class="btn" onclick="login()" id="loginBtn">Sign In</button>
+  <div class="error" id="errorMsg"></div>
+  <div class="divider">or</div>
+  <button class="sub-btn" onclick="showRegister()">Create Account</button>
+
+  <div id="registerSection" style="display:none;margin-top:20px;border-top:1px solid var(--border);padding-top:20px">
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="regName" placeholder="Your name">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="regEmail" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="regPassword" placeholder="min 8 characters">
+    </div>
+    <button class="btn" onclick="register()">Create Account</button>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function showRegister() {
+  document.getElementById('registerSection').style.display = 'block';
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('errorMsg').style.display = 'none';
+}
+
+async function login() {
+  hideError();
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('loginBtn');
+  if (!email || !password) return showError('Email and password required.');
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res  = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    localStorage.setItem('sv_token', data.token);
+    localStorage.setItem('sv_user', JSON.stringify(data.user));
+    window.location.href = '/';
+  } catch (e) {
+    showError(e.message);
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+async function register() {
+  hideError();
+  const name     = document.getElementById('regName').value.trim();
+  const email    = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  if (!email || !password) return showError('Email and password required.');
+  if (password.length < 8) return showError('Password must be at least 8 characters.');
+
+  try {
+    const res  = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Registration failed');
+    localStorage.setItem('sv_token', data.token);
+    localStorage.setItem('sv_user', JSON.stringify(data.user));
+    window.location.href = '/';
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+// Redirect if already logged in
+if (localStorage.getItem('sv_token')) window.location.href = '/';
+</script>
+</body>
+</html>
