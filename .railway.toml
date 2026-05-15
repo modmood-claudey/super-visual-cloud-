@@ -1,9 +1,0 @@
-[build]
-buildCommand = "cd server && npm install"
-
-[deploy]
-startCommand = "node server/index.js"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 5
-healthcheckPath = "/health"
-healthcheckTimeout = 30
