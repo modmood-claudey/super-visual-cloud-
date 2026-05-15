@@ -88,6 +88,20 @@ async function startBot() {
         const hasAudio = !!msg.message?.audioMessage;
 
         if (hasImage || hasVideo) {
+          // Collect refs for fullboard instead of analyzing
+          if (sess.pendingAction?.type === 'fullboard_collect' && hasImage) {
+            try {
+              const buf   = await downloadMediaMessage(msg, 'buffer', {});
+              const fname = `wa_ref_${Date.now()}.jpg`;
+              const url   = await db.uploadFile('references', fname, buf, 'image/jpeg');
+              sess.pendingAction.refs.push(url);
+              await send(`📎 Ref ${sess.pendingAction.refs.length} added. Send more or /go.`);
+            } catch (e) {
+              await send(`⚠️ Upload error: ${e.message}`);
+            }
+            continue;
+          }
+
           await send(hasVideo ? '🎬 Analyzing video reference…' : '🖼️ Analyzing image…');
           try {
             const buf  = await downloadMediaMessage(msg, 'buffer', {});
@@ -238,9 +252,34 @@ async function startBot() {
               break;
             }
 
+            case '/fullboard': {
+              sess.pendingAction = { type: 'fullboard_ask_scenes' };
+              await send('🎬 *Full Storyboard*\n\nHow many scenes?\n\n*6* — Short reel\n*9* — Full campaign\n*12* — Extended');
+              break;
+            }
+
+            case '/go': {
+              if (sess.pendingAction?.type !== 'fullboard_collect') {
+                await send('❌ No fullboard in progress. Start with /fullboard');
+                break;
+              }
+              const pa = sess.pendingAction;
+              if (!pa.brief) { await send('❌ Send your brief first'); break; }
+              sess.pendingAction = null;
+              await runFullStoryboardWA(jid, pa.brief, pa.refs, pa.numScenes, sess, send, sock);
+              break;
+            }
+
             default:
               await send(`Unknown command. Type /start for menu.`);
           }
+          continue;
+        }
+
+        // Handle fullboard brief text (keep pendingAction alive)
+        if (sess.pendingAction?.type === 'fullboard_collect' && bodyText && !bodyText.startsWith('/')) {
+          sess.pendingAction.brief = bodyText;
+          await send(`✅ Brief saved (${sess.pendingAction.refs.length} refs). Send more images or /go.`);
           continue;
         }
 
@@ -248,6 +287,18 @@ async function startBot() {
         if (sess.pendingAction) {
           const pa = sess.pendingAction;
           sess.pendingAction = null;
+
+          if (pa.type === 'fullboard_ask_scenes') {
+            const num = parseInt(bodyText);
+            if (!num || num < 1 || num > 30) {
+              sess.pendingAction = pa;
+              await send('❌ Reply with a number: 6, 9, or 12');
+              continue;
+            }
+            sess.pendingAction = { type: 'fullboard_collect', numScenes: num, refs: [], brief: null };
+            await send(`✅ *${num} scenes.* Send your brief + reference images, then /go.`);
+            continue;
+          }
 
           if (pa === 'storyboard_brief') {
             await runStoryboard(jid, bodyText, sess, send, sock, db, gpt, higgsfield);
@@ -313,6 +364,38 @@ async function getOrCreateUser(jid, db) {
     user = await db.createUser(email, await bcrypt.hash(jid, 10), `WA_${jid.split('@')[0]}`, 'editor');
   }
   return user;
+}
+
+async function runFullStoryboardWA(jid, brief, refs, numScenes, sess, send, sock) {
+  await send(`🚀 Generating full storyboard (${numScenes} scenes)… 2–3 min.`);
+  try {
+    const gpt    = require('../services/gpt');
+    const result = await gpt.generateFullStoryboard(
+      brief, refs, [], numScenes,
+      sess.project?.client || '',
+      sess.project?.name   || ''
+    );
+
+    const colors = (result.brand_kit?.colors || []).map(c => c.hex).join(' · ');
+    await send(
+      `🎨 *Brand Kit*\n*${result.brand_kit?.name || ''}*\n_${result.brand_kit?.tagline || ''}_\n\nColors: ${colors}`
+    );
+
+    for (const scene of result.scenes) {
+      if (scene.image_url) {
+        await sock.sendMessage(jid, {
+          image: { url: scene.image_url },
+          caption: `Scene ${scene.num}: ${scene.title || ''}\n${(scene.action || '').slice(0, 100)}`,
+        }).catch(() => {});
+      }
+    }
+
+    if (result.storyboard_url) {
+      await send(`📋 Storyboard:\n${result.storyboard_url}`);
+    }
+  } catch (e) {
+    await send(`⚠️ Error: ${e.message}`);
+  }
 }
 
 module.exports = { startBot };

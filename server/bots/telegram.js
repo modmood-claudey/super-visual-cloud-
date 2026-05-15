@@ -325,6 +325,27 @@ function startBot() {
     }
   });
 
+  // ── /fullboard ────────────────────────────────────────────────────────────
+  bot.onText(/\/fullboard(.*)/, (msg, match) => {
+    if (!allowed(msg.chat.id)) return;
+    const sess = getSession(msg.chat.id);
+    sess.pendingAction = { type: 'fullboard_ask_scenes' };
+    send(msg.chat.id,
+      `🎬 *Full Storyboard*\n\nHow many scenes?\n\n*6* — Short reel\n*9* — Full campaign\n*12* — Extended`
+    );
+  });
+
+  // ── /go (triggers fullboard generation) ───────────────────────────────────
+  bot.onText(/\/go/, async (msg) => {
+    if (!allowed(msg.chat.id)) return;
+    const sess = getSession(msg.chat.id);
+    if (sess.pendingAction?.type !== 'fullboard_collect') return;
+    const pa = sess.pendingAction;
+    if (!pa.brief) return send(msg.chat.id, '❌ Send your brief first, then /go');
+    sess.pendingAction = null;
+    await runFullStoryboard(msg.chat.id, pa.brief, pa.refs, pa.numScenes, sess, send, bot);
+  });
+
   // ── Callback query handler (inline buttons) ────────────────────────────────
   bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
@@ -367,11 +388,43 @@ function startBot() {
   // ── General messages → brain ───────────────────────────────────────────────
   bot.on('message', async (msg) => {
     if (!allowed(msg.chat.id)) return;
-    if (msg.text?.startsWith('/')) return;
 
     const chatId = msg.chat.id;
     const sess   = getSession(chatId);
     const text   = msg.text?.trim() || '';
+
+    // Handle fullboard scene-count reply
+    if (sess.pendingAction?.type === 'fullboard_ask_scenes') {
+      if (text && !text.startsWith('/')) {
+        const num = parseInt(text);
+        if (!num || num < 1 || num > 30) {
+          send(chatId, '❌ Reply with a number: 6, 9, or 12');
+          return;
+        }
+        sess.pendingAction = { type: 'fullboard_collect', numScenes: num, refs: [], brief: null };
+        send(chatId, `✅ *${num} scenes.* Now send your brief + reference images.\nSend /go when ready.`);
+        return;
+      }
+    }
+
+    // Handle fullboard ref image collection
+    if (sess.pendingAction?.type === 'fullboard_collect') {
+      const pa = sess.pendingAction;
+      if (msg.photo) {
+        const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
+        const url  = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+        pa.refs.push(url);
+        send(chatId, `📎 Ref ${pa.refs.length} added — send more or /go to generate.`);
+        return;
+      }
+      if (text && !text.startsWith('/')) {
+        pa.brief = text;
+        send(chatId, `✅ Brief saved (${pa.refs.length} refs). Send more images or /go to start.`);
+        return;
+      }
+    }
+
+    if (msg.text?.startsWith('/')) return;
 
     // Handle pending actions
     if (sess.pendingAction) {
@@ -538,6 +591,38 @@ ${s.image_url ? `<img src="${s.image_url}">` : '<div style="aspect-ratio:9/16;ba
 <strong>${s.title || ''}</strong><br>
 ${s.action || ''}</div></div>`).join('')}
 </div></body></html>`;
+}
+
+async function runFullStoryboard(chatId, brief, refs, numScenes, sess, send, bot) {
+  send(chatId, `🚀 Generating full storyboard (${numScenes} scenes + brand kit)…\nThis takes 2–3 minutes.`);
+  try {
+    const gpt = require('../services/gpt');
+    const result = await gpt.generateFullStoryboard(
+      brief, refs, [], numScenes,
+      sess.project?.client || '',
+      sess.project?.name   || ''
+    );
+
+    const colors = (result.brand_kit?.colors || []).map(c => c.hex).join(' · ');
+    send(chatId,
+      `🎨 *Brand Kit*\n\n*${result.brand_kit?.name || ''}*\n_${result.brand_kit?.tagline || ''}_\n\n` +
+      `Colors: ${colors}\nStyle: ${result.brand_kit?.visual_style || ''}\nTone: ${result.brand_kit?.tone || ''}`
+    );
+
+    for (const scene of result.scenes) {
+      if (scene.image_url) {
+        await bot.sendPhoto(chatId, scene.image_url, {
+          caption: `Scene ${scene.num}: ${scene.title || ''}\n${(scene.action || '').slice(0, 100)}`,
+        }).catch(() => {});
+      }
+    }
+
+    if (result.storyboard_url) {
+      send(chatId, `📋 *Storyboard Sheet:*\n${result.storyboard_url}`);
+    }
+  } catch (e) {
+    send(chatId, `⚠️ Full storyboard error: ${e.message}`);
+  }
 }
 
 module.exports = { startBot };

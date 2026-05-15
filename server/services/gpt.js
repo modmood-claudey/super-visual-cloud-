@@ -1,6 +1,7 @@
 'use strict';
 const OpenAI = require('openai');
-const { saveMessage, getHistory, logGptImage, countGptImages } = require('./supabase');
+const axios  = require('axios');
+const { saveMessage, getHistory, logGptImage, countGptImages, uploadFile } = require('./supabase');
 
 const GPT_IMAGE_LIMIT = 45;
 const GPT_IMAGE_WINDOW_HOURS = 3;
@@ -297,6 +298,204 @@ async function adjustPromptFromFeedback(original_prompt, feedback, bad_image_url
   return response.choices[0].message.content.trim();
 }
 
+async function generateFullStoryboard(brief, refs = [], videoRefs = [], numScenes = 6, clientName = '', projectName = '') {
+  const gptClient = getClient();
+
+  // Build vision message with text + all ref images
+  const contentParts = [
+    {
+      type: 'text',
+      text: `You are a creative director for Super Visual, Doha Qatar.
+Analyze these references and brief. Output JSON only:
+{
+  "brand_kit": {"name":"...","tagline":"...","colors":[{"hex":"...","usage":"..."}],"tone":"...","visual_style":"..."},
+  "scenes": [{"num":1,"title":"...","duration":"5s","action":"...","camera":"...","lighting":"...","mood":"...","prompt":"..."}]
+}
+Scene prompts MUST follow Waviboy rules:
+- Specific camera body + lens
+- Lighting + Kelvin
+- Film/sensor reference
+- Micro-texture details
+- Composition
+- Color grade
+- NEVER use: cinematic, moody, vibrant, stunning, ethereal, dynamic, dreamy
+- Append: no 3D, no cartoon, no VFX
+Generate exactly ${numScenes} scenes.
+
+Brief: ${brief}
+Client: ${clientName}
+Project: ${projectName}`,
+    },
+  ];
+
+  for (const refUrl of refs.slice(0, 10)) {
+    try {
+      const resp = await axios.get(refUrl, { responseType: 'arraybuffer', timeout: 15000 });
+      const b64  = Buffer.from(resp.data).toString('base64');
+      const ct   = resp.headers['content-type'] || 'image/jpeg';
+      contentParts.push({ type: 'image_url', image_url: { url: `data:${ct};base64,${b64}`, detail: 'high' } });
+    } catch (_) {}
+  }
+
+  const analysisResp = await gptClient.chat.completions.create({
+    model: 'gpt-5.5-2026-04-23',
+    messages: [{ role: 'user', content: contentParts }],
+    max_tokens: 4000,
+    response_format: { type: 'json_object' },
+  });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(analysisResp.choices[0].message.content);
+  } catch {
+    throw new Error('GPT returned invalid JSON for storyboard');
+  }
+
+  const brand_kit = parsed.brand_kit || {};
+  const scenes    = (parsed.scenes   || []).slice(0, numScenes);
+
+  // Generate image for each scene
+  const image_urls = [];
+
+  for (const scene of scenes) {
+    try {
+      const styleCtx   = brand_kit.visual_style ? ` Style: ${brand_kit.visual_style}.` : '';
+      const fullPrompt = `${scene.prompt}${styleCtx}`;
+
+      const imgResp = await gptClient.images.generate({
+        model:   'gpt-image-2',
+        prompt:  fullPrompt,
+        n:       1,
+        size:    '1024x1536',
+        quality: 'high',
+      });
+
+      const item = imgResp.data[0];
+      let buf;
+
+      if (item?.url) {
+        const dl = await axios.get(item.url, { responseType: 'arraybuffer', timeout: 30000 });
+        buf = Buffer.from(dl.data);
+      } else if (item?.b64_json) {
+        buf = Buffer.from(item.b64_json, 'base64');
+      }
+
+      if (buf) {
+        const fname      = `fullboard_scene_${Date.now()}_${scene.num}.png`;
+        const publicUrl  = await uploadFile('references', fname, buf, 'image/png');
+        scene.image_url  = publicUrl;
+        image_urls.push(publicUrl);
+        await logGptImage(null, scene.prompt, publicUrl);
+      }
+    } catch (e) {
+      scene.image_url   = null;
+      scene.image_error = e.message;
+    }
+  }
+
+  // Build HTML storyboard sheet → PNG → upload
+  const html = buildFullStoryboardHTML(brand_kit, scenes, clientName, projectName);
+  let storyboard_url = null;
+
+  try {
+    const pngBuf  = await htmlToPng(html);
+    const fname   = `storyboard_full_${Date.now()}.png`;
+    storyboard_url = await uploadFile('storyboards', fname, pngBuf, 'image/png');
+  } catch (_) {
+    try {
+      const htmlBuf  = Buffer.from(html, 'utf8');
+      const fname    = `storyboard_full_${Date.now()}.html`;
+      storyboard_url = await uploadFile('storyboards', fname, htmlBuf, 'text/html');
+    } catch (_2) {}
+  }
+
+  return { brand_kit, scenes, storyboard_url, image_urls };
+}
+
+async function htmlToPng(html) {
+  const puppeteer = require('puppeteer-core');
+  let executablePath;
+
+  try {
+    const chromium = require('@sparticuz/chromium');
+    executablePath  = await chromium.executablePath();
+  } catch (_) {
+    executablePath = process.env.CHROME_PATH ||
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  }
+
+  const browser = await puppeteer.launch({
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    defaultViewport: { width: 1440, height: 900 },
+    executablePath,
+    headless: true,
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    return await page.screenshot({ fullPage: true, type: 'png' });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+function buildFullStoryboardHTML(brand_kit, scenes, clientName, projectName) {
+  const palette = (brand_kit.colors || [])
+    .map(c => `<span class="swatch" style="background:${c.hex}" title="${c.usage || c.hex}"></span>`)
+    .join('');
+
+  const sceneCards = scenes.map(s => `
+    <div class="scene">
+      <div class="scene-num">SCENE ${s.num}</div>
+      <div class="scene-title">${s.title || ''}</div>
+      ${s.image_url
+        ? `<img src="${s.image_url}" alt="Scene ${s.num}">`
+        : '<div class="no-img">No image</div>'}
+      <div class="meta">
+        <div><strong>ACTION:</strong> ${s.action || ''}</div>
+        <div><strong>CAMERA:</strong> ${s.camera || ''}</div>
+        <div><strong>LIGHTING:</strong> ${s.lighting || ''}</div>
+        <div><strong>MOOD:</strong> ${s.mood || ''}</div>
+      </div>
+    </div>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${brand_kit.name || projectName} — Super Visual Storyboard</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0a; color: #e8e8e8; font-family: -apple-system, sans-serif; padding: 40px; }
+.header { margin-bottom: 32px; border-bottom: 1px solid #2a2a2a; padding-bottom: 24px; }
+h1 { color: #F2C94C; font-size: 32px; margin-bottom: 6px; }
+.tagline { color: #888; font-size: 15px; margin-bottom: 16px; }
+.palette { display: flex; gap: 8px; }
+.swatch { display: inline-block; width: 28px; height: 28px; border-radius: 50%; border: 1px solid #333; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+.scene { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; }
+.scene-num { background: #F2C94C; color: #000; font-size: 10px; font-weight: 700; padding: 4px 12px; letter-spacing: 1px; }
+.scene-title { padding: 10px 16px 6px; font-size: 14px; font-weight: 600; }
+img { width: 100%; aspect-ratio: 2/3; object-fit: cover; }
+.no-img { width: 100%; aspect-ratio: 2/3; background: #1c1c1c; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+.meta { padding: 12px 16px; font-size: 11px; line-height: 1.9; color: #aaa; border-top: 1px solid #222; }
+.meta strong { color: #F2C94C; }
+footer { margin-top: 40px; text-align: center; color: #444; font-size: 11px; border-top: 1px solid #1c1c1c; padding-top: 20px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>${brand_kit.name || projectName || 'Storyboard'}</h1>
+  <div class="tagline">${brand_kit.tagline || ''}</div>
+  <div class="palette">${palette}</div>
+</div>
+<div class="grid">${sceneCards}</div>
+<footer>${clientName} · Super Visual Doha · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</footer>
+</body>
+</html>`;
+}
+
 module.exports = {
   GPT_SYSTEM_PROMPT,
   chat,
@@ -305,6 +504,7 @@ module.exports = {
   writePrompt,
   generateBrandKit,
   generateStoryboard,
+  generateFullStoryboard,
   generateImages,
   checkImageLimit,
   adjustPromptFromFeedback,

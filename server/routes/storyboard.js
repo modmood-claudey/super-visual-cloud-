@@ -271,4 +271,52 @@ img { width: 100%; aspect-ratio: 9/16; object-fit: cover; }
 </html>`;
 }
 
+// POST /storyboard/full
+router.post('/full', requireAuth, async (req, res) => {
+  try {
+    const { brief, refs = [], video_refs = [], num_scenes = 6, client = '', project = '' } = req.body;
+    if (!brief) return res.status(400).json({ error: 'brief required' });
+
+    const result = await gpt.generateFullStoryboard(brief, refs, video_refs, num_scenes, client, project);
+
+    const dbProject = await db.createProject({
+      client:    client || 'Unknown',
+      name:      result.brand_kit?.name || project || `Project ${Date.now()}`,
+      brief,
+      user_id:   req.user.id,
+      brand_kit: result.brand_kit,
+    });
+
+    for (let i = 0; i < result.scenes.length; i++) {
+      const s = result.scenes[i];
+      await db.createScene({
+        project_id: dbProject.id,
+        num:        s.num || i + 1,
+        title:      s.title,
+        action:     s.action,
+        camera:     s.camera,
+        lighting:   s.lighting,
+        mood:       s.mood,
+        prompt:     s.prompt,
+        image_url:  s.image_url || null,
+        status:     s.image_url ? 'generated' : 'pending',
+      });
+    }
+
+    const tgBot = global.telegramBot;
+    if (tgBot) {
+      const chatId = parseInt(process.env.TELEGRAM_ALLOWED_CHAT_ID || '6327308132');
+      tgBot.sendMessage(
+        chatId,
+        `✅ *Full Storyboard Ready*\n\n*${result.brand_kit?.name || 'Storyboard'}*\n${result.scenes.length} scenes\n\n${result.storyboard_url || ''}`,
+        { parse_mode: 'Markdown' }
+      ).catch(() => {});
+    }
+
+    res.json({ ...result, project: dbProject });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
