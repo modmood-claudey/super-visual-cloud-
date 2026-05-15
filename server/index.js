@@ -43,17 +43,28 @@ app.post('/upload', require('./middleware/auth').requireAuth, upload.single('fil
   }
 });
 
+// ── Safe route loader ────────────────────────────────────────────────────────
+function safeRequire(mod) {
+  try { return require(mod); }
+  catch (e) {
+    console.error('[startup] Failed to load module:', mod, '-', e.message);
+    const r = require('express').Router();
+    r.all('*', (_req, res) => res.status(503).json({ error: 'Route unavailable', detail: e.message }));
+    return r;
+  }
+}
+
 // ── Routes ─────────────────────────────────────────────────────────────────────
-app.use('/auth',       require('./routes/auth'));
-app.use('/brain',      require('./routes/brain'));
-app.use('/generate',   require('./routes/generate'));
-app.use('/storyboard', require('./routes/storyboard'));
-app.use('/storyboard', require('./routes/storyboard_routes'));
-app.use('/branding',   require('./routes/branding'));
-app.use('/vo',         require('./routes/vo'));
-app.use('/memory',     require('./routes/memory'));
-app.use('/projects',   require('./routes/projects'));
-app.use('/topaz',      require('./routes/topaz'));
+app.use('/auth',       safeRequire('./routes/auth'));
+app.use('/brain',      safeRequire('./routes/brain'));
+app.use('/generate',   safeRequire('./routes/generate'));
+app.use('/storyboard', safeRequire('./routes/storyboard'));
+app.use('/storyboard', safeRequire('./routes/storyboard_routes'));
+app.use('/branding',   safeRequire('./routes/branding'));
+app.use('/vo',         safeRequire('./routes/vo'));
+app.use('/memory',     safeRequire('./routes/memory'));
+app.use('/projects',   safeRequire('./routes/projects'));
+app.use('/topaz',      safeRequire('./routes/topaz'));
 
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
@@ -88,7 +99,12 @@ app.get('*', (req, res) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
     return res.status(404).json({ error: 'Not found' });
   }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Dashboard not available' });
+  }
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────────
