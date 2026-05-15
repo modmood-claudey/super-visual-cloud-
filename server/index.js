@@ -25,7 +25,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── File upload endpoint ───────────────────────────────────────────────────────
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-const { uploadFile } = require('./services/supabase');
+let uploadFile = async () => { throw new Error('Supabase not configured'); };
+try { uploadFile = require('./services/supabase').uploadFile; }
+catch (e) { console.error('[startup] supabase init failed:', e.message); }
 
 app.post('/upload', require('./middleware/auth').requireAuth, upload.single('file'), async (req, res) => {
   try {
