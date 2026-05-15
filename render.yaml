@@ -2,7 +2,7 @@ services:
   - type: web
     name: super-visual-cloud
     runtime: node
-    buildCommand: cd server && npm install
+    buildCommand: npm install
     startCommand: node server/index.js
     envVars:
       - key: NODE_ENV
