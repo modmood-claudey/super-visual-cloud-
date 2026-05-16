@@ -116,13 +116,17 @@ app.get('/login.html', (_req, res) => {
 });
 
 // Dashboard app (client-side auth guard in app.html)
-app.get('/app', (_req, res) => {
-  const p = path.join(__dirname, 'public', 'app.html');
-  require('fs').existsSync(p) ? res.sendFile(p) : res.redirect('/');
-});
-app.get('/app/*', (_req, res) => {
-  const p = path.join(__dirname, 'public', 'app.html');
-  require('fs').existsSync(p) ? res.sendFile(p) : res.redirect('/');
+app.get('/app', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+app.get('/app/*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+
+// ── API aliases ────────────────────────────────────────────────────────────────
+app.get('/api/status', (_req, res) => res.redirect(307, '/health'));
+app.get('/api/chats',  require('./middleware/auth').requireAuth, async (req, res) => {
+  try {
+    const { listConversations } = require('./services/supabase');
+    const convs = await listConversations(req.user.id, 60);
+    res.json({ conversations: convs });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Fallback — 404 for API routes, marketing site for everything else

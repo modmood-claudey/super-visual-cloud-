@@ -435,7 +435,7 @@ const user  = JSON.parse(localStorage.getItem('sv_user') || 'null');
 if (!token) { window.location.href = '/login'; }
 if (user) document.getElementById('userLabel').textContent = user.name || user.email;
 
-function logout() { localStorage.clear(); window.location.href = '/login.html'; }
+function logout() { localStorage.clear(); window.location.href = '/login'; }
 
 function api(path, opts = {}) {
   return fetch(path, {

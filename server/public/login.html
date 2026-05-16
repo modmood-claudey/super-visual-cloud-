@@ -96,7 +96,7 @@ async function login() {
     if (!res.ok) throw new Error(data.error || 'Login failed');
     localStorage.setItem('sv_token', data.token);
     localStorage.setItem('sv_user', JSON.stringify(data.user));
-    window.location.href = '/';
+    window.location.href = '/app';
   } catch (e) {
     showError(e.message);
     btn.disabled = false; btn.textContent = 'Sign In';
@@ -121,14 +121,14 @@ async function register() {
     if (!res.ok) throw new Error(data.error || 'Registration failed');
     localStorage.setItem('sv_token', data.token);
     localStorage.setItem('sv_user', JSON.stringify(data.user));
-    window.location.href = '/';
+    window.location.href = '/app';
   } catch (e) {
     showError(e.message);
   }
 }
 
 // Redirect if already logged in
-if (localStorage.getItem('sv_token')) window.location.href = '/';
+if (localStorage.getItem('sv_token')) window.location.href = '/app';
 </script>
 </body>
 </html>
