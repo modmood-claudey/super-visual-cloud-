@@ -75,7 +75,7 @@ async function chat(session_id, userMessage, platform = 'dashboard', systemOverr
   const response = await client.chat.completions.create({
     model: 'gpt-5.4-mini',
     messages,
-    max_tokens: 1024,
+    max_completion_tokens: 1024,
     temperature: 0.7,
   });
 
@@ -100,7 +100,7 @@ async function analyzeImage(image_url, prompt = 'Analyze this image for a creati
         { type: 'image_url', image_url: { url: image_url, detail: 'high' } },
       ],
     }],
-    max_tokens: 800,
+    max_completion_tokens: 800,
   });
   return response.choices[0].message.content;
 }
@@ -126,7 +126,7 @@ Output as structured Waviboy-style production notes. Be specific and technical.`
         { type: 'image_url', image_url: { url: video_url, detail: 'high' } },
       ],
     }],
-    max_tokens: 1000,
+    max_completion_tokens: 1000,
   });
   return response.choices[0].message.content;
 }
@@ -151,7 +151,7 @@ Output only the prompt, nothing else.`;
   const response = await client.chat.completions.create({
     model: 'gpt-5.4-mini',
     messages: [{ role: 'user', content: msg }],
-    max_tokens: 600,
+    max_completion_tokens: 600,
     temperature: 0.8,
   });
   return response.choices[0].message.content.trim();
@@ -177,7 +177,7 @@ Return ONLY valid JSON in this exact structure:
   const response = await client.chat.completions.create({
     model: 'gpt-5.5-2026-04-23',
     messages: [{ role: 'user', content: msg }],
-    max_tokens: 1000,
+    max_completion_tokens: 1000,
     response_format: { type: 'json_object' },
     temperature: 0.7,
   });
@@ -216,7 +216,7 @@ Rules: NEVER use cinematic/moody/vibrant/stunning/ethereal/dynamic/dreamy in pro
   const response = await client.chat.completions.create({
     model: 'gpt-5.5-2026-04-23',
     messages: [{ role: 'user', content: msg }],
-    max_tokens: 2000,
+    max_completion_tokens: 2000,
     response_format: { type: 'json_object' },
     temperature: 0.7,
   });
@@ -293,7 +293,7 @@ async function adjustPromptFromFeedback(original_prompt, feedback, bad_image_url
   const response = await client.chat.completions.create({
     model: 'gpt-5.4-mini',
     messages: [{ role: 'user', content: [textPart, ...imgParts] }],
-    max_tokens: 600,
+    max_completion_tokens: 600,
   });
   return response.choices[0].message.content.trim();
 }
@@ -340,7 +340,7 @@ Project: ${projectName}`,
   const analysisResp = await gptClient.chat.completions.create({
     model: 'gpt-5.5-2026-04-23',
     messages: [{ role: 'user', content: contentParts }],
-    max_tokens: 4000,
+    max_completion_tokens: 4000,
     response_format: { type: 'json_object' },
   });
 
