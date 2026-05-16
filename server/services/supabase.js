@@ -164,6 +164,38 @@ async function uploadFile(bucket, filename, buffer, contentType = 'application/o
   return urlData.publicUrl;
 }
 
+// ── Conversations ─────────────────────────────────────────────────────────────
+async function upsertConversation(user_id, session_id, platform, title, last_message) {
+  const now = new Date().toISOString();
+  const { error: insErr } = await supabase
+    .from('conversations')
+    .insert({ user_id, session_id, platform, title, last_message, updated_at: now })
+    .select();
+  if (insErr && insErr.code === '23505') {
+    // Already exists — only refresh last_message + updated_at, preserve title
+    await supabase
+      .from('conversations')
+      .update({ last_message, updated_at: now })
+      .eq('session_id', session_id);
+  }
+}
+
+async function listConversations(user_id, limit = 60) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('id, session_id, platform, title, last_message, created_at, updated_at')
+    .eq('user_id', user_id)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return data;
+}
+
+async function deleteConversation(session_id, user_id) {
+  await supabase.from('chat_history').delete().eq('session_id', session_id);
+  await supabase.from('conversations').delete().eq('session_id', session_id).eq('user_id', user_id);
+}
+
 // ── User helpers ───────────────────────────────────────────────────────────────
 async function getUserByEmail(email) {
   const { data, error } = await supabase
@@ -190,4 +222,5 @@ module.exports = {
   addTopazJob, getPendingTopazJobs, completeTopazJob,
   uploadFile,
   getUserByEmail, createUser,
+  upsertConversation, listConversations, deleteConversation,
 };

@@ -3,6 +3,7 @@ const router  = require('express').Router();
 const gpt     = require('../services/gpt');
 const claude  = require('../services/claude');
 const { requireAuth } = require('../middleware/auth');
+const db      = require('../services/supabase');
 
 // POST /brain/chat
 router.post('/chat', requireAuth, async (req, res) => {
@@ -33,10 +34,15 @@ router.post('/chat', requireAuth, async (req, res) => {
     const sid = session_id || `${req.user.id}_${platform}`;
     const result = await gpt.chat(sid, fullMessage, platform);
 
+    // Track conversation (fire-and-forget)
+    const convTitle   = (message || 'Attachment').slice(0, 60);
+    const lastSnippet = (result.text || '').slice(0, 120);
+    db.upsertConversation(req.user.id, sid, platform, convTitle, lastSnippet).catch(() => {});
+
     // Enrich suggestions based on action
     const suggestions = buildSuggestions(result.action);
 
-    res.json({ text: result.text, action: result.action, suggestions, session_id: sid });
+    res.json({ text: result.text, action: result.action, suggestions, session_id: sid, conversation_id: sid });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -90,5 +96,30 @@ function buildSuggestions(action = {}) {
   }
   return suggestions;
 }
+
+
+// GET /brain/conversations
+router.get('/conversations', requireAuth, async (req, res) => {
+  try {
+    const convs = await db.listConversations(req.user.id, 60);
+    res.json({ conversations: convs });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /brain/conversations/:session_id/messages
+router.get('/conversations/:session_id/messages', requireAuth, async (req, res) => {
+  try {
+    const messages = await db.getHistory(req.params.session_id, 100);
+    res.json({ messages, session_id: req.params.session_id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /brain/conversations/:session_id
+router.delete('/conversations/:session_id', requireAuth, async (req, res) => {
+  try {
+    await db.deleteConversation(req.params.session_id, req.user.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 module.exports = router;
