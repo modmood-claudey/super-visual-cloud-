@@ -96,6 +96,12 @@ app.get('/health', async (_req, res) => {
   res.status(ok ? 200 : 503).json(checks);
 });
 
+// ── Static PWA files ──────────────────────────────────────────────────────────
+app.get('/manifest.json', (_req, res) => res.sendFile('manifest.json', { root: path.join(__dirname, 'public') }));
+app.get('/sw.js',         (_req, res) => res.sendFile('sw.js',         { root: path.join(__dirname, 'public') }));
+app.get('/icon-192.png',  (_req, res) => res.sendFile('icon-192.png',  { root: path.join(__dirname, 'public') }));
+app.get('/icon-512.png',  (_req, res) => res.sendFile('icon-512.png',  { root: path.join(__dirname, 'public') }));
+
 // ── Page routing ──────────────────────────────────────────────────────────────
 
 // Marketing site (unauthenticated)
