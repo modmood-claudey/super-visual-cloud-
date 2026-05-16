@@ -129,6 +129,40 @@ app.get('/api/chats',  require('./middleware/auth').requireAuth, async (req, res
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/chats — save new chat
+app.post('/api/chats', require('./middleware/auth').requireAuth, async (req, res) => {
+  try {
+    const { supabase } = require('./services/supabase');
+    const { title, messages } = req.body;
+    const lastMsg = messages?.[messages.length-1]?.content || '';
+    const row = { user_id: req.user.id, session_id: `api_${Date.now()}`, platform: 'dashboard', title: title || 'Untitled' };
+    // Include last_message only if column exists (avoids schema cache errors if migration not run)
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({ ...row, last_message: lastMsg })
+      .select().single();
+    if (error && error.message && error.message.includes('last_message')) {
+      // Retry without last_message (migration not yet applied)
+      const { data: data2, error: error2 } = await supabase
+        .from('conversations').insert(row).select().single();
+      if (error2) throw error2;
+      return res.json(data2);
+    }
+    if (error) throw error;
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/chats/:id — get single chat
+app.get('/api/chats/:id', require('./middleware/auth').requireAuth, async (req, res) => {
+  try {
+    const { supabase } = require('./services/supabase');
+    const { data, error } = await supabase.from('conversations').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Fallback — 404 for API routes, marketing site for everything else
 app.use((req, res) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path.startsWith('/brain') ||

@@ -528,22 +528,15 @@ async function sendChat() {
       content: m.innerText
     }));
     if (!currentChatId) {
-      const res = await fetch('/api/chats', {
+      const chatData = await api('/api/chats', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          user_id: 'mohammad',
-          title: messages[0]?.content?.slice(0, 40) || 'New Chat',
-          messages
-        })
+        body: { title: messages[0]?.content?.slice(0, 40) || 'New Chat', messages }
       });
-      const chatData = await res.json();
       currentChatId = chatData.id;
     } else {
-      await fetch(`/api/chats/${currentChatId}`, {
+      await api(`/api/chats/${currentChatId}`, {
         method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ messages })
+        body: { messages }
       });
     }
     loadChatHistory();
@@ -569,20 +562,22 @@ async function loadConversations() {
 }
 
 async function loadChatHistory() {
-  const res = await fetch('/api/chats?user_id=mohammad');
-  const chats = await res.json();
-  const sidebar = document.querySelector('.chat-history') || document.querySelector('#chat-list');
-  if (!sidebar) return;
-  sidebar.innerHTML = chats.map(c => `
-    <div class="chat-item" onclick="loadChat('${c.id}')" style="padding:8px;cursor:pointer;border-bottom:1px solid #222;font-size:12px;color:#ccc;">
-      ${c.title || 'Untitled'}
-    </div>
-  `).join('');
+  try {
+    const chats = await api('/api/chats');
+    const sidebar = document.querySelector('.chat-history') || document.querySelector('#chat-list');
+    if (!sidebar) return;
+    const list = chats.conversations || chats;
+    if (!Array.isArray(list)) return;
+    sidebar.innerHTML = list.map(c => `
+      <div class="chat-item" onclick="loadChat('${c.id}')" style="padding:8px;cursor:pointer;border-bottom:1px solid #222;font-size:12px;color:#ccc;">
+        ${c.title || 'Untitled'}
+      </div>
+    `).join('');
+  } catch (_) {}
 }
 
 async function loadChat(id) {
-  const res = await fetch(`/api/chats/${id}`);
-  const chat = await res.json();
+  const chat = await api(`/api/chats/${id}`);
   currentChatId = id;
   const chatArea = document.querySelector('#chat-messages') || document.querySelector('.messages');
   if (chatArea && chat.messages) {
