@@ -96,17 +96,40 @@ app.get('/health', async (_req, res) => {
   res.status(ok ? 200 : 503).json(checks);
 });
 
-// ── SPA fallback ───────────────────────────────────────────────────────────────
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
+// ── Page routing ──────────────────────────────────────────────────────────────
+
+// Marketing site (unauthenticated)
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Login page
+app.get('/login', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+app.get('/login.html', (_req, res) => {
+  res.redirect(301, '/login');
+});
+
+// Dashboard app (client-side auth guard in app.html)
+app.get('/app', (_req, res) => {
+  const p = path.join(__dirname, 'public', 'app.html');
+  require('fs').existsSync(p) ? res.sendFile(p) : res.redirect('/');
+});
+app.get('/app/*', (_req, res) => {
+  const p = path.join(__dirname, 'public', 'app.html');
+  require('fs').existsSync(p) ? res.sendFile(p) : res.redirect('/');
+});
+
+// Fallback — 404 for API routes, marketing site for everything else
+app.use((req, res) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path.startsWith('/brain') ||
+      req.path.startsWith('/storyboard') || req.path.startsWith('/generate') || req.path.startsWith('/branding') ||
+      req.path.startsWith('/projects') || req.path.startsWith('/memory') || req.path.startsWith('/vo') ||
+      req.path.startsWith('/upload') || req.path.startsWith('/health') || req.path.startsWith('/topaz')) {
     return res.status(404).json({ error: 'Not found' });
   }
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  if (require('fs').existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).json({ error: 'Dashboard not available' });
-  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────────
