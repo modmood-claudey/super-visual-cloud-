@@ -64,10 +64,19 @@ function stripActionJSON(text) {
 
 async function chat(session_id, userMessage, platform = 'dashboard', systemOverride = null) {
   const client = getClient();
-  const history = await getHistory(session_id, 16);
+  const mem    = require('./memory');
+
+  const [history, relevantMemories] = await Promise.all([
+    getHistory(session_id, 16),
+    mem.getRelevant(userMessage, 5),
+  ]);
+
+  const memContext = mem.formatForPrompt(relevantMemories);
+  const baseSystem = systemOverride || GPT_SYSTEM_PROMPT;
+  const fullSystem = memContext ? `${baseSystem}\n\n${memContext}` : baseSystem;
 
   const messages = [
-    { role: 'system', content: systemOverride || GPT_SYSTEM_PROMPT },
+    { role: 'system', content: fullSystem },
     ...history,
     { role: 'user', content: userMessage },
   ];
@@ -79,12 +88,14 @@ async function chat(session_id, userMessage, platform = 'dashboard', systemOverr
     temperature: 0.7,
   });
 
-  const raw = response.choices[0].message.content;
+  const raw    = response.choices[0].message.content;
   const action = parseActionJSON(raw);
   const text   = stripActionJSON(raw);
 
   await saveMessage(session_id, platform, 'user', userMessage);
   await saveMessage(session_id, platform, 'assistant', raw);
+
+  mem.extractAndSave(userMessage, raw, platform).catch(() => {});
 
   return { text, action, raw };
 }
