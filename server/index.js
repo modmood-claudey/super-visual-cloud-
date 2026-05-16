@@ -104,8 +104,12 @@ app.get('/icon-512.png',  (_req, res) => res.sendFile('icon-512.png',  { root: p
 
 // ── Page routing ──────────────────────────────────────────────────────────────
 
-// Marketing site (unauthenticated)
-app.get('/', (_req, res) => {
+// Root: marketing site on thesupervisual.com, redirect to /login on app subdomain
+app.get('/', (req, res) => {
+  const host = (req.headers.host || '').split(':')[0];
+  if (host === 'app.thesupervisual.com') {
+    return res.redirect(302, '/login');
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
