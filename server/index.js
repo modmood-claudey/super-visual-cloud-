@@ -20,6 +20,9 @@ app.use(rateLimit({ windowMs: 60000, max: 100, standardHeaders: true, legacyHead
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Root redirect must come before static middleware (otherwise index.html is served first)
+app.get('/', (_req, res) => res.redirect(302, '/login'));
+
 // ── Static files (dashboard) ───────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -103,15 +106,6 @@ app.get('/icon-192.png',  (_req, res) => res.sendFile('icon-192.png',  { root: p
 app.get('/icon-512.png',  (_req, res) => res.sendFile('icon-512.png',  { root: path.join(__dirname, 'public') }));
 
 // ── Page routing ──────────────────────────────────────────────────────────────
-
-// Root: marketing site on thesupervisual.com, redirect to /login on app subdomain
-app.get('/', (req, res) => {
-  const host = (req.headers.host || '').split(':')[0];
-  if (host === 'app.thesupervisual.com') {
-    return res.redirect(302, '/login');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 // Login page
 app.get('/login', (_req, res) => {
