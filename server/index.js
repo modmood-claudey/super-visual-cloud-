@@ -153,6 +153,22 @@ app.post('/api/chats', require('./middleware/auth').requireAuth, async (req, res
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// PUT /api/chats/:id — update existing chat
+app.put('/api/chats/:id', require('./middleware/auth').requireAuth, async (req, res) => {
+  try {
+    const { supabase } = require('./services/supabase');
+    const { messages, title } = req.body;
+    const updates = { updated_at: new Date().toISOString() };
+    if (title) updates.title = title;
+    if (messages?.length) updates.last_message = messages[messages.length - 1]?.content || '';
+    const { data, error } = await supabase
+      .from('conversations').update(updates).eq('id', req.params.id).eq('user_id', req.user.id)
+      .select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/chats/:id — get single chat
 app.get('/api/chats/:id', require('./middleware/auth').requireAuth, async (req, res) => {
   try {

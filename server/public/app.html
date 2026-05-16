@@ -523,7 +523,7 @@ async function sendChat() {
     if (data.conversation_id && !currentConvId) currentConvId = data.conversation_id;
     loadConversations();
     // Save conversation
-    const messages = Array.from(document.querySelectorAll('.message')).map(m => ({
+    const messages = Array.from(document.querySelectorAll('#chatMsgs .msg:not(.system)')).map(m => ({
       role: m.classList.contains('user') ? 'user' : 'assistant',
       content: m.innerText
     }));
@@ -562,28 +562,18 @@ async function loadConversations() {
 }
 
 async function loadChatHistory() {
-  try {
-    const chats = await api('/api/chats');
-    const sidebar = document.querySelector('.chat-history') || document.querySelector('#chat-list');
-    if (!sidebar) return;
-    const list = chats.conversations || chats;
-    if (!Array.isArray(list)) return;
-    sidebar.innerHTML = list.map(c => `
-      <div class="chat-item" onclick="loadChat('${c.id}')" style="padding:8px;cursor:pointer;border-bottom:1px solid #222;font-size:12px;color:#ccc;">
-        ${c.title || 'Untitled'}
-      </div>
-    `).join('');
-  } catch (_) {}
+  // Delegates to existing loadConversations — same data source, same sidebar (#convList)
+  loadConversations();
 }
 
 async function loadChat(id) {
   const chat = await api(`/api/chats/${id}`);
   currentChatId = id;
-  const chatArea = document.querySelector('#chat-messages') || document.querySelector('.messages');
-  if (chatArea && chat.messages) {
-    chatArea.innerHTML = chat.messages.map(m => `
-      <div class="message ${m.role}">${m.content}</div>
-    `).join('');
+  const chatMsgs = document.getElementById('chatMsgs');
+  if (!chatMsgs) return;
+  chatMsgs.innerHTML = '';
+  if (chat.last_message) {
+    appendMsg('brain', mdToHtml(chat.last_message));
   }
 }
 
