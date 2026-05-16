@@ -124,6 +124,26 @@ app.listen(PORT, () => {
     }
   }
 
+  // Seed admin user if not exists
+  (async () => {
+    try {
+      const { getUserByEmail, createUser } = require('./services/supabase');
+      const bcrypt = require('bcryptjs');
+      const adminEmail = process.env.ADMIN_EMAIL || 'mohammad@supervisual.com';
+      const adminPass  = process.env.ADMIN_PASSWORD || 'SuperVisual2026!';
+      const existing   = await getUserByEmail(adminEmail);
+      if (!existing) {
+        const hash = await bcrypt.hash(adminPass, 12);
+        await createUser(adminEmail, hash, 'Mohammad', 'admin');
+        console.log('[startup] Admin user seeded:', adminEmail);
+      } else {
+        console.log('[startup] Admin user exists:', adminEmail);
+      }
+    } catch (e) {
+      console.error('[startup] Admin seed failed (DB may not be ready):', e.message);
+    }
+  })();
+
   // Start WhatsApp bot (optional — requires QR scan)
   if (process.env.START_WHATSAPP === 'true') {
     require('./bots/whatsapp').startBot().catch(e => {

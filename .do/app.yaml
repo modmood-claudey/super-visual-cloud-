@@ -1,0 +1,50 @@
+name: super-visual-cloud
+services:
+- name: server
+  github:
+    repo: modmood-claudey/super-visual-cloud-
+    branch: main
+    deploy_on_push: true
+  build_command: npm install
+  run_command: node server/index.js
+  http_port: 3000
+  instance_size_slug: basic-xxs
+  instance_count: 1
+  routes:
+  - path: /
+  envs:
+  # ── Non-secret config ─────────────────────────────────────────────────────
+  - key: NODE_ENV
+    value: "production"
+    type: GENERAL
+  - key: SUPABASE_URL
+    value: "https://fvwatmezhnwfsuaixzte.supabase.co"
+    type: GENERAL
+  - key: HIGGSFIELD_KEY_ID
+    value: "fd9416ff-cba4-442a-9e8f-e336defabd48"
+    type: GENERAL
+  - key: HIGGSFIELD_WORKSPACE_ID
+    value: "154e2f0c-d69e-46b5-be29-0d4bf53f5927"
+    type: GENERAL
+  - key: ADMIN_EMAIL
+    value: "mohammad@supervisual.com"
+    type: GENERAL
+  # ── Secrets: set values in DO dashboard or via deploy.sh ─────────────────
+  - key: OPENAI_API_KEY
+    type: SECRET
+  - key: ANTHROPIC_API_KEY
+    type: SECRET
+  - key: SUPABASE_ANON_KEY
+    type: SECRET
+  - key: SUPABASE_SERVICE_KEY
+    type: SECRET
+  - key: HIGGSFIELD_API_KEY
+    type: SECRET
+  - key: ELEVENLABS_API_KEY
+    type: SECRET
+  - key: TELEGRAM_BOT_TOKEN
+    type: SECRET
+  - key: JWT_SECRET
+    type: SECRET
+  - key: ADMIN_PASSWORD
+    type: SECRET
