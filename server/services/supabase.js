@@ -169,14 +169,18 @@ async function upsertConversation(user_id, session_id, platform, title, last_mes
   const now = new Date().toISOString();
   const { error: insErr } = await supabase
     .from('conversations')
-    .insert({ user_id, session_id, platform, title, last_message, updated_at: now })
-    .select();
-  if (insErr && insErr.code === '23505') {
-    // Already exists — only refresh last_message + updated_at, preserve title
-    await supabase
-      .from('conversations')
-      .update({ last_message, updated_at: now })
-      .eq('session_id', session_id);
+    .insert({ user_id, session_id, platform, title, last_message, updated_at: now });
+  if (insErr) {
+    if (insErr.code === '23505') {
+      // Already exists — update last_message + timestamp, preserve title
+      const { error: updErr } = await supabase
+        .from('conversations')
+        .update({ last_message, updated_at: now })
+        .eq('session_id', session_id);
+      if (updErr) console.error('[conv] update failed:', updErr.message);
+    } else {
+      console.error('[conv] insert failed:', insErr.code, insErr.message);
+    }
   }
 }
 

@@ -155,6 +155,24 @@ app.listen(PORT, () => {
     }
   }
 
+  // Check conversations table exists — warn clearly if migration not run
+  (async () => {
+    try {
+      const { supabase } = require('./services/supabase');
+      const { error } = await supabase.from('conversations').select('id').limit(1);
+      if (error && error.code === '42P01') {
+        console.warn('[startup] ⚠️  conversations table missing — run this in Supabase SQL Editor:');
+        console.warn('  server/migrations/001_conversations.sql');
+      } else if (!error) {
+        console.log('[startup] conversations table OK');
+      } else {
+        console.warn('[startup] conversations check:', error.message);
+      }
+    } catch (e) {
+      console.warn('[startup] conversations check failed:', e.message);
+    }
+  })();
+
   // Seed admin user if not exists
   (async () => {
     try {

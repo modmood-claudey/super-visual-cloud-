@@ -976,7 +976,7 @@ async function refreshStatus() {
     if (data.gpt?.images_remaining != null) {
       const rem = data.gpt.images_remaining;
       updateLimitMeter(rem, 45);
-      document.getElementById('limitDetail').textContent = `GPT Images: ${rem} / 45 remaining in current 3-hour window`;
+      document.getElementById('limitDetail').textContent = `GPT Images: ${rem} left / 45 max — resets on rolling 3-hour window`;
     }
   } catch (e) {
     document.getElementById('statusTable').innerHTML = `<div class="status-row"><div class="status-label">⚠️ ${esc(e.message)}</div></div>`;
@@ -1000,7 +1000,7 @@ function updateLimitMeter(remaining, limit) {
   const lf2 = document.getElementById('statusLimitFill');
   if (lf2) { lf2.style.width = pct + '%'; lf2.className = 'limit-fill' + (pct > 80 ? ' crit' : pct > 60 ? ' warn' : ''); }
   const lt = document.getElementById('limitText');
-  if (lt) lt.textContent = `${remaining}/${limit}`;
+  if (lt) lt.textContent = remaining >= limit ? `${limit} left` : `${remaining}/${limit} left`;
 }
 
 async function runGenerate() {
