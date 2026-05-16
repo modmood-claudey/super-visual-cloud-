@@ -147,8 +147,8 @@ app.listen(PORT, () => {
   console.log(`✓ Super Visual Cloud running on port ${PORT}`);
   console.log(`  Dashboard: http://localhost:${PORT}`);
 
-  // Start Telegram bot
-  if (process.env.TELEGRAM_BOT_TOKEN) {
+  // Start Telegram bot (only if TELEGRAM_POLLING=true — avoids conflict with standalone bot.py)
+  if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_POLLING === 'true') {
     try {
       const { startBot } = require('./bots/telegram');
       startBot();
