@@ -196,6 +196,22 @@ async function deleteConversation(session_id, user_id) {
   await supabase.from('conversations').delete().eq('session_id', session_id).eq('user_id', user_id);
 }
 
+async function getConversationBySession(session_id) {
+  const { data } = await supabase
+    .from('conversations')
+    .select('id, session_id, title, last_message')
+    .eq('session_id', session_id)
+    .single();
+  return data || null;
+}
+
+async function updateConversationTitle(session_id, title) {
+  await supabase
+    .from('conversations')
+    .update({ title })
+    .eq('session_id', session_id);
+}
+
 // ── User helpers ───────────────────────────────────────────────────────────────
 async function getUserByEmail(email) {
   const { data, error } = await supabase
@@ -223,4 +239,5 @@ module.exports = {
   uploadFile,
   getUserByEmail, createUser,
   upsertConversation, listConversations, deleteConversation,
+  getConversationBySession, updateConversationTitle,
 };

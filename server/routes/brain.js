@@ -35,9 +35,31 @@ router.post('/chat', requireAuth, async (req, res) => {
     const result = await gpt.chat(sid, fullMessage, platform);
 
     // Track conversation (fire-and-forget)
-    const convTitle   = (message || 'Attachment').slice(0, 60);
+    const rawTitle    = (message || 'Attachment').slice(0, 60);
     const lastSnippet = (result.text || '').slice(0, 120);
-    db.upsertConversation(req.user.id, sid, platform, convTitle, lastSnippet).catch(() => {});
+    db.upsertConversation(req.user.id, sid, platform, rawTitle, lastSnippet).catch(() => {});
+
+    // Generate a 5-word GPT title for new conversations (async, no await)
+    (async () => {
+      try {
+        const existing = await db.getConversationBySession(sid);
+        // Only generate title on first message (title still matches raw truncation)
+        if (existing && existing.title === rawTitle && message) {
+          const OpenAI  = require('openai');
+          const titleClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+          const resp = await titleClient.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: `Summarize this in 5 words max, no punctuation: "${message.slice(0,200)}"` }],
+            max_completion_tokens: 20,
+            temperature: 0.3,
+          });
+          const smartTitle = (resp.choices[0]?.message?.content || '').trim().slice(0, 60);
+          if (smartTitle) {
+            await db.updateConversationTitle(sid, smartTitle);
+          }
+        }
+      } catch (_) {}
+    })();
 
     // Enrich suggestions based on action
     const suggestions = buildSuggestions(result.action);
