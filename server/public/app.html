@@ -302,6 +302,7 @@ textarea { resize: vertical; min-height: 72px; font-family: inherit; line-height
           <span style="color:var(--muted);font-size:12px" id="boardTitle">No project loaded</span>
           <div style="display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="loadBoard()">↻ Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="generateAllScenes()">⚡ Gen All</button>
             <button class="btn btn-primary btn-sm" onclick="compile()">📦 Compile</button>
           </div>
         </div>
@@ -705,8 +706,9 @@ async function generate() {
       if (data.job_id) pollVideoJob(data.job_id, card);
     } else {
       data = await api('/generate/image', { method: 'POST', body: { prompt, refs, engine } });
-      updateLimitMeter(data.gpt_remaining, 45);
+      updateLimitMeter(data.gpt_remaining ?? _getLocalGptRemaining(), 45);
       for (const img of data.images || []) {
+        _trackGptUsage();
         grid.prepend(makeResultCard('image', prompt, img.url));
       }
       if (data.limit_hit) appendMsg('system', '⚠️ GPT image limit hit — switched to Higgsfield');
@@ -731,6 +733,7 @@ function makeResultCard(type, prompt, imageUrl, jobId = null) {
           <button class="btn btn-green btn-sm" onclick="approveResult('${imageUrl}')">✅ Approve</button>
           <button class="btn btn-ghost btn-sm" onclick="retryResult()">🔄 Retry</button>
           <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${imageUrl}')">📋 URL</button>
+          <a href="${imageUrl}" download class="btn btn-ghost btn-sm">⬇ Save</a>
         ` : ''}
       </div>
     </div>`;
@@ -769,21 +772,95 @@ function retryResult() { generate(); }
 // ── Storyboard ─────────────────────────────────────────────────────────────────
 async function runStoryboard() {
   const brief  = document.getElementById('briefInput').value.trim();
-  const client = document.getElementById('clientSelect').value;
+  const client = document.getElementById('clientSelect').value || 'Client';
   const name   = document.getElementById('projectName').value.trim() || 'New Project';
   if (!brief) return alert('Enter a brief first.');
 
-  appendMsg('system', `📋 Building ${currentEngine} storyboard…`);
   switchTab('chat');
+  appendMsg('system', `📋 Generating 7-scene storyboard for ${client}…`);
 
   try {
-    const data = await api('/storyboard/start', { method: 'POST', body: {
-      brief, client, project_name: name, engine: currentEngine
-    }});
-    currentProject = data.project;
-    document.getElementById('boardTitle').textContent = `${client} / ${name} — ${data.scenes?.length} scenes`;
+    // Step 1: ask brain for 7 numbered prompts
+    const brainResp = await api('/brain/chat', {
+      method: 'POST',
+      body: {
+        message: `Generate a 7-scene storyboard for ${client}: ${brief}. Return exactly 7 numbered scene prompts ready for image generation, each on its own line starting with the number (1. 2. 3. etc). Each prompt must include: camera body+lens, lighting+Kelvin, film reference, composition, color grade. No extra commentary, just the 7 numbered prompts.`,
+        session_id: currentSessionId,
+        platform: 'dashboard',
+      }
+    });
+
+    const rawText = brainResp.text || '';
+    appendMsg('brain', mdToHtml(rawText));
+
+    // Step 2: parse numbered prompts (1. ... through 7.)
+    const promptLines = rawText
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => /^\d+[\.\)]\s+/.test(l))
+      .map(l => l.replace(/^\d+[\.\)]\s+/, '').trim())
+      .filter(Boolean)
+      .slice(0, 7);
+
+    if (!promptLines.length) {
+      appendMsg('system', '⚠️ Could not parse scene prompts from response. Try again or rephrase brief.');
+      return;
+    }
+
+    // Step 3: generate each image and show in Board tab
+    document.getElementById('boardTitle').textContent = `${client} / ${name} — ${promptLines.length} scenes`;
     switchTab('board');
-    renderBoard(data.scenes || []);
+    const boardGrid = document.getElementById('boardGrid');
+    boardGrid.innerHTML = '';
+
+    // Pre-render placeholder cards
+    for (let i = 0; i < promptLines.length; i++) {
+      const card = document.createElement('div');
+      card.className = 'scene-card';
+      card.id = `board-card-${i}`;
+      card.innerHTML = `
+        <div style="aspect-ratio:9/16;background:#111;display:flex;align-items:center;justify-content:center" id="board-img-${i}">
+          <span class="spinner"></span>
+        </div>
+        <div class="sc-info">
+          <div class="sc-num">SCENE ${i + 1}</div>
+          <div class="sc-meta" style="font-size:10px;margin-top:4px" id="board-status-${i}">Queued…</div>
+          <div class="sc-meta" style="font-size:10px;color:var(--muted);margin-top:4px">${esc(promptLines[i].slice(0, 80))}…</div>
+        </div>`;
+      boardGrid.appendChild(card);
+    }
+
+    // Step 4: generate each image sequentially
+    let successCount = 0;
+    for (let i = 0; i < promptLines.length; i++) {
+      const statusEl = document.getElementById(`board-status-${i}`);
+      const imgEl    = document.getElementById(`board-img-${i}`);
+      if (statusEl) statusEl.textContent = `Generating scene ${i + 1}/${promptLines.length}…`;
+
+      try {
+        const result = await api('/api/generate-image', {
+          method: 'POST',
+          body: { prompt: promptLines[i], size: '1024x1792', quality: 'standard' },
+        });
+
+        const url = result.images?.[0]?.url || result.images?.[0]?.b64_json;
+        if (url) {
+          successCount++;
+          _trackGptUsage();
+          if (imgEl) imgEl.innerHTML = `<img src="${url}" style="width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:4px 4px 0 0">`;
+          if (statusEl) statusEl.innerHTML = `
+            <a href="${url}" download="scene_${i+1}.jpg" class="btn btn-green btn-sm" style="font-size:10px;padding:3px 8px">⬇ Download</a>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="navigator.clipboard.writeText('${url}')">📋 URL</button>`;
+        } else {
+          if (statusEl) statusEl.textContent = '⚠️ No image returned';
+        }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `⚠️ ${e.message.slice(0, 60)}`;
+      }
+    }
+
+    appendMsg('system', `✅ Storyboard done — ${successCount}/${promptLines.length} images generated`);
+
   } catch (e) {
     appendMsg('brain', `⚠️ ${esc(e.message)}`);
   }
@@ -825,9 +902,11 @@ function renderBoard(scenes) {
     card.className = 'scene-card';
     const status = s.status || 'pending';
     card.innerHTML = `
-      ${s.image_url ? `<img src="${s.image_url}" loading="lazy">` : '<div style="aspect-ratio:9/16;background:#111"></div>'}
+      <div id="scene-img-${s.id}">${s.image_url
+        ? `<img src="${s.image_url}" loading="lazy" style="width:100%">`
+        : '<div style="aspect-ratio:9/16;background:#111;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No image</div>'}</div>
       <div class="sc-info">
-        <div class="sc-num">SCENE ${s.num} <span class="sc-status ${status}">${status}</span></div>
+        <div class="sc-num">SCENE ${s.num} <span class="sc-status ${status}" id="scene-status-${s.id}">${status}</span></div>
         <div class="sc-title">${esc(s.title || '')}</div>
         <div class="sc-meta">${esc((s.action||'').slice(0,80))}</div>
         <div class="sc-actions">
@@ -835,6 +914,7 @@ function renderBoard(scenes) {
           <button class="btn btn-ghost btn-sm" onclick="retryScene('${s.id}')">🔄</button>
           <button class="btn btn-ghost btn-sm" onclick="generateScene('${s.id}')">⚡ Gen</button>
           <button class="btn btn-ghost btn-sm" onclick="promptAdjust('${s.id}')">✏️</button>
+          ${s.image_url ? `<a href="${s.image_url}" download="scene_${s.num}.jpg" class="btn btn-ghost btn-sm">⬇</a>` : ''}
         </div>
       </div>`;
     grid.appendChild(card);
@@ -850,11 +930,55 @@ async function loadBoard() {
 }
 
 async function generateScene(id) {
+  const statusEl = document.getElementById(`scene-status-${id}`);
+  if (statusEl) statusEl.textContent = 'generating…';
   try {
     const data = await api('/storyboard/scene/generate', { method: 'POST', body: { scene_id: id, engine: currentEngine } });
     updateLimitMeter(data.gpt_remaining, 45);
+    _trackGptUsage();
+    if (data.scene?.image_url) {
+      const imgEl = document.getElementById(`scene-img-${id}`);
+      if (imgEl) imgEl.innerHTML = `<img src="${data.scene.image_url}" style="width:100%">`;
+    }
+    if (statusEl) statusEl.textContent = 'generated';
     loadBoard();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '⚠️ failed';
+    alert('Error: ' + e.message);
+  }
+}
+
+async function generateAllScenes() {
+  if (!currentProject?.id) return alert('No project loaded.');
+  try {
+    const data = await api(`/projects/${currentProject.id}`);
+    const scenes = (data.scenes || []).filter(s => !s.image_url);
+    if (!scenes.length) return alert('All scenes already generated.');
+    appendMsg('system', `⚡ Generating ${scenes.length} pending scenes…`);
+    for (let i = 0; i < scenes.length; i++) {
+      appendMsg('system', `Generating scene ${i + 1}/${scenes.length}…`);
+      await generateScene(scenes[i].id);
+    }
+    appendMsg('system', `✅ All scenes generated`);
   } catch (e) { alert('Error: ' + e.message); }
+}
+
+// ── GPT usage tracking (localStorage daily counter) ───────────────────────────
+function _trackGptUsage() {
+  const today = new Date().toDateString();
+  const raw   = JSON.parse(localStorage.getItem('gpt_usage') || '{}');
+  if (raw.date !== today) { raw.date = today; raw.used = 0; }
+  raw.used = (raw.used || 0) + 1;
+  localStorage.setItem('gpt_usage', JSON.stringify(raw));
+  const remaining = Math.max(0, 45 - raw.used);
+  updateLimitMeter(remaining, 45);
+}
+
+function _getLocalGptRemaining() {
+  const today = new Date().toDateString();
+  const raw   = JSON.parse(localStorage.getItem('gpt_usage') || '{}');
+  if (raw.date !== today) return 45;
+  return Math.max(0, 45 - (raw.used || 0));
 }
 
 async function approveScene(id) {
@@ -1076,6 +1200,16 @@ function mdToHtml(text) {
 refreshStatus();
 loadConversations();
 loadChatHistory();
+// Seed GPT counter from localStorage immediately so it shows before /health responds
+updateLimitMeter(_getLocalGptRemaining(), 45);
+// Reset localStorage counter daily
+setInterval(() => {
+  const raw = JSON.parse(localStorage.getItem('gpt_usage') || '{}');
+  if (raw.date && raw.date !== new Date().toDateString()) {
+    localStorage.removeItem('gpt_usage');
+    updateLimitMeter(45, 45);
+  }
+}, 60000);
 setInterval(refreshStatus, 30000);
 setInterval(loadConversations, 60000);
 </script>

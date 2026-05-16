@@ -374,7 +374,7 @@ Project: ${projectName}`,
       const fullPrompt = `${scene.prompt}${styleCtx}`;
 
       const imgResp = await gptClient.images.generate({
-        model:   'gpt-image-2',
+        model:   'gpt-image-1',
         prompt:  fullPrompt,
         n:       1,
         size:    '1024x1536',

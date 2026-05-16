@@ -153,6 +153,59 @@ app.post('/api/chats', require('./middleware/auth').requireAuth, async (req, res
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/generate-image — direct OpenAI image generation
+app.post('/api/generate-image', require('./middleware/auth').requireAuth, async (req, res) => {
+  try {
+    const OpenAI = require('openai');
+    const oa = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const { prompt, num_images = 1, size = '1024x1792', quality = 'standard' } = req.body;
+    if (!prompt) return res.status(400).json({ error: 'prompt required' });
+
+    let response;
+    try {
+      response = await oa.images.generate({ model: 'gpt-image-1', prompt, n: num_images, size, quality });
+    } catch (_) {
+      // Fallback: dall-e-3 (n must be 1)
+      response = await oa.images.generate({
+        model: 'dall-e-3', prompt, n: 1, size,
+        quality: quality === 'high' ? 'hd' : 'standard',
+        response_format: 'url',
+      });
+    }
+    res.json({ images: response.data });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/generate-batch — generate one image per prompt
+app.post('/api/generate-batch', require('./middleware/auth').requireAuth, async (req, res) => {
+  try {
+    const OpenAI = require('openai');
+    const oa = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const { prompts = [], size = '1024x1792', quality = 'standard' } = req.body;
+    if (!prompts.length) return res.status(400).json({ error: 'prompts array required' });
+
+    const results = [];
+    for (const prompt of prompts) {
+      try {
+        let response;
+        try {
+          response = await oa.images.generate({ model: 'gpt-image-1', prompt, n: 1, size, quality });
+        } catch (_) {
+          response = await oa.images.generate({
+            model: 'dall-e-3', prompt, n: 1, size,
+            quality: quality === 'high' ? 'hd' : 'standard',
+            response_format: 'url',
+          });
+        }
+        results.push({ prompt, images: response.data, ok: true });
+      } catch (e) {
+        results.push({ prompt, error: e.message, ok: false });
+      }
+    }
+    res.json({ results });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUT /api/chats/:id — update existing chat
 app.put('/api/chats/:id', require('./middleware/auth').requireAuth, async (req, res) => {
   try {
