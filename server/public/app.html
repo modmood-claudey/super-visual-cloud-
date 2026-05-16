@@ -451,6 +451,7 @@ let currentConvId    = null;
 let currentProject   = null;
 let currentSessionId = `dash_${Date.now()}`;
 let pendingAttachment = null;
+let currentChatId    = null;
 
 function getClient() { return document.getElementById('clientSelect').value || 'this client'; }
 
@@ -521,6 +522,31 @@ async function sendChat() {
     if (data.suggestions?.length) renderSuggestions(data.suggestions);
     if (data.conversation_id && !currentConvId) currentConvId = data.conversation_id;
     loadConversations();
+    // Save conversation
+    const messages = Array.from(document.querySelectorAll('.message')).map(m => ({
+      role: m.classList.contains('user') ? 'user' : 'assistant',
+      content: m.innerText
+    }));
+    if (!currentChatId) {
+      const res = await fetch('/api/chats', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          user_id: 'mohammad',
+          title: messages[0]?.content?.slice(0, 40) || 'New Chat',
+          messages
+        })
+      });
+      const chatData = await res.json();
+      currentChatId = chatData.id;
+    } else {
+      await fetch(`/api/chats/${currentChatId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ messages })
+      });
+    }
+    loadChatHistory();
   } catch (e) {
     removMsg(typingId);
     appendMsg('brain', `⚠️ Error: ${esc(e.message)}`);
@@ -530,6 +556,7 @@ async function sendChat() {
 function newChat() {
   currentSessionId = `dash_${Date.now()}`;
   currentConvId    = null;
+  currentChatId    = null;
   document.getElementById('chatMsgs').innerHTML = '<div class="msg system">New session. Say anything.</div>';
   document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
 }
@@ -539,6 +566,30 @@ async function loadConversations() {
     const data = await api('/brain/conversations');
     renderConversations(data.conversations || []);
   } catch (_) {}
+}
+
+async function loadChatHistory() {
+  const res = await fetch('/api/chats?user_id=mohammad');
+  const chats = await res.json();
+  const sidebar = document.querySelector('.chat-history') || document.querySelector('#chat-list');
+  if (!sidebar) return;
+  sidebar.innerHTML = chats.map(c => `
+    <div class="chat-item" onclick="loadChat('${c.id}')" style="padding:8px;cursor:pointer;border-bottom:1px solid #222;font-size:12px;color:#ccc;">
+      ${c.title || 'Untitled'}
+    </div>
+  `).join('');
+}
+
+async function loadChat(id) {
+  const res = await fetch(`/api/chats/${id}`);
+  const chat = await res.json();
+  currentChatId = id;
+  const chatArea = document.querySelector('#chat-messages') || document.querySelector('.messages');
+  if (chatArea && chat.messages) {
+    chatArea.innerHTML = chat.messages.map(m => `
+      <div class="message ${m.role}">${m.content}</div>
+    `).join('');
+  }
 }
 
 function renderConversations(list) {
@@ -1039,6 +1090,7 @@ function mdToHtml(text) {
 // ── Init ───────────────────────────────────────────────────────────────────────
 refreshStatus();
 loadConversations();
+loadChatHistory();
 setInterval(refreshStatus, 30000);
 setInterval(loadConversations, 60000);
 </script>
